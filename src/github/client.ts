@@ -1,6 +1,10 @@
 import { throttling } from '@octokit/plugin-throttling';
 import { Octokit } from '@octokit/rest';
-import type { OctokitRepository, RepositoryListOptions } from '../checks/types';
+import type {
+  OctokitRepository,
+  RepositoryListOptions,
+  VulnerabilityAlert,
+} from '../checks/types';
 import * as logger from '../logging';
 import type {
   BranchProtectionRule,
@@ -389,5 +393,99 @@ export class GitHubClient {
     }
 
     return settings;
+  }
+
+  /**
+   * List Dependabot vulnerability alerts for a repository
+   */
+  async getVulnerabilityAlerts(owner: string, repo: string): Promise<VulnerabilityAlert[]> {
+    try {
+      const alerts = await this.octokit.paginate(
+        this.octokit.rest.dependabot.listAlertsForRepo,
+        {
+          owner,
+          repo,
+          per_page: 100,
+          state: 'all',
+        }
+      );
+
+      return alerts as unknown as VulnerabilityAlert[];
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to list vulnerability alerts for ${owner}/${repo}: ${message}`
+      );
+    }
+  }
+
+  /**
+   * Enable or disable Dependabot vulnerability alerts for a repository
+   */
+  async updateVulnerabilityAlerts(owner: string, repo: string, enabled: boolean): Promise<void> {
+    try {
+      if (enabled) {
+        await this.octokit.rest.repos.enableVulnerabilityAlerts({ owner, repo });
+      } else {
+        await this.octokit.rest.repos.disableVulnerabilityAlerts({ owner, repo });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to ${enabled ? 'enable' : 'disable'} vulnerability alerts for ${owner}/${repo}: ${message}`
+      );
+    }
+  }
+
+  /**
+   * Enable or disable GitHub secret scanning for a repository
+   */
+  async updateSecretScanning(owner: string, repo: string, enabled: boolean): Promise<void> {
+    const status = enabled ? 'enabled' : 'disabled';
+
+    try {
+      await this.octokit.request('PATCH /repos/{owner}/{repo}', {
+        owner,
+        repo,
+        security_and_analysis: {
+          secret_scanning: {
+            status,
+          },
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to ${enabled ? 'enable' : 'disable'} secret scanning for ${owner}/${repo}: ${message}`
+      );
+    }
+  }
+
+  /**
+   * Enable or disable secret scanning push protection for a repository
+   */
+  async updateSecretScanningPushProtection(
+    owner: string,
+    repo: string,
+    enabled: boolean
+  ): Promise<void> {
+    const status = enabled ? 'enabled' : 'disabled';
+
+    try {
+      await this.octokit.request('PATCH /repos/{owner}/{repo}', {
+        owner,
+        repo,
+        security_and_analysis: {
+          secret_scanning_push_protection: {
+            status,
+          },
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to ${enabled ? 'enable' : 'disable'} secret scanning push protection for ${owner}/${repo}: ${message}`
+      );
+    }
   }
 }
