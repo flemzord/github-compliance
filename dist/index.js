@@ -30000,7 +30000,24 @@ async function validateFromString(yamlContentOrPath, sourcePath) {
         if (error instanceof zod_1.ZodError) {
             const issues = error.issues.map((issue) => {
                 const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
-                return `${path}: ${issue.message}`;
+                let message = issue.message;
+                // Add more context for common errors
+                if (issue.code === 'invalid_type') {
+                    message = `Expected ${issue.expected}, but received ${issue.received}`;
+                }
+                else if (issue.code === 'invalid_enum_value') {
+                    const options = issue.options;
+                    message = `Invalid value. Expected one of: ${options.join(', ')}`;
+                }
+                else if (issue.code === 'unrecognized_keys') {
+                    const keys = issue.keys;
+                    message = `Unrecognized key(s): ${keys.join(', ')}`;
+                }
+                else if (issue.code === 'invalid_literal') {
+                    const expected = issue.expected;
+                    message = `Must be exactly: ${expected}`;
+                }
+                return `${path}: ${message}`;
             });
             const message = `Configuration validation failed${actualSourcePath ? ` for ${actualSourcePath}` : ''}`;
             throw new ConfigValidationError(message, issues);
@@ -30149,9 +30166,29 @@ async function run() {
         core.info(`✅ Compliance check completed: ${outputs.compliancePercentage}% compliant`);
     }
     catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        core.error(errorMessage);
-        core.setFailed(`Action failed: ${errorMessage}`);
+        if (error instanceof Error) {
+            core.error(`❌ ${error.message}`);
+            // If it's a ConfigValidationError, show detailed issues
+            if ('issues' in error && Array.isArray(error.issues)) {
+                const issues = error.issues;
+                if (issues.length > 0) {
+                    core.error('Configuration validation errors:');
+                    for (const issue of issues) {
+                        core.error(`  • ${issue}`);
+                    }
+                }
+            }
+            // Show the full stack trace in debug mode
+            if (error.stack) {
+                core.debug(error.stack);
+            }
+            core.setFailed(`Action failed: ${error.message}`);
+        }
+        else {
+            const errorMessage = String(error);
+            core.error(errorMessage);
+            core.setFailed(`Action failed: ${errorMessage}`);
+        }
     }
 }
 if (require.main === require.cache[eval('__filename')]) {

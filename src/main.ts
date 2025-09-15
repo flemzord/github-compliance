@@ -95,9 +95,31 @@ async function run(): Promise<void> {
     setOutputs(outputs);
     core.info(`✅ Compliance check completed: ${outputs.compliancePercentage}% compliant`);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    core.error(errorMessage);
-    core.setFailed(`Action failed: ${errorMessage}`);
+    if (error instanceof Error) {
+      core.error(`❌ ${error.message}`);
+
+      // If it's a ConfigValidationError, show detailed issues
+      if ('issues' in error && Array.isArray((error as any).issues)) {
+        const issues = (error as any).issues;
+        if (issues.length > 0) {
+          core.error('Configuration validation errors:');
+          for (const issue of issues) {
+            core.error(`  • ${issue}`);
+          }
+        }
+      }
+
+      // Show the full stack trace in debug mode
+      if (error.stack) {
+        core.debug(error.stack);
+      }
+
+      core.setFailed(`Action failed: ${error.message}`);
+    } else {
+      const errorMessage = String(error);
+      core.error(errorMessage);
+      core.setFailed(`Action failed: ${errorMessage}`);
+    }
   }
 }
 

@@ -71,7 +71,23 @@ export async function validateFromString(
     if (error instanceof ZodError) {
       const issues = error.issues.map((issue) => {
         const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
-        return `${path}: ${issue.message}`;
+        let message = issue.message;
+
+        // Add more context for common errors
+        if (issue.code === 'invalid_type') {
+          message = `Expected ${issue.expected}, but received ${(issue as any).received}`;
+        } else if ((issue as any).code === 'invalid_enum_value') {
+          const options = (issue as any).options;
+          message = `Invalid value. Expected one of: ${options.join(', ')}`;
+        } else if (issue.code === 'unrecognized_keys') {
+          const keys = (issue as any).keys;
+          message = `Unrecognized key(s): ${keys.join(', ')}`;
+        } else if ((issue as any).code === 'invalid_literal') {
+          const expected = (issue as any).expected;
+          message = `Must be exactly: ${expected}`;
+        }
+
+        return `${path}: ${message}`;
       });
 
       const message = `Configuration validation failed${actualSourcePath ? ` for ${actualSourcePath}` : ''}`;
