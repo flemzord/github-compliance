@@ -56,6 +56,32 @@ const mockConfig: Record<string, unknown> = {
           teams: ['maintainers'],
         },
       },
+    },
+  },
+};
+
+// Additional config with develop branch for multi-branch tests
+const mockConfigWithDevelop: Record<string, unknown> = {
+  version: 1,
+  organization: 'test-org',
+  defaults: {
+    branch_protection: {
+      main: {
+        required_status_checks: {
+          strict: true,
+          contexts: ['ci/tests', 'ci/lint'],
+        },
+        enforce_admins: true,
+        required_pull_request_reviews: {
+          required_approving_review_count: 2,
+          dismiss_stale_reviews: true,
+          require_code_owner_reviews: true,
+        },
+        restrictions: {
+          users: ['admin'],
+          teams: ['maintainers'],
+        },
+      },
       develop: {
         required_status_checks: {
           strict: false,
@@ -172,15 +198,12 @@ describe('BranchProtectionCheck', () => {
 
         expect(result.compliant).toBe(false);
         expect(result.message).toContain("Branch 'main' should have protection rules but has none");
+        const branchProtection = (mockConfig.defaults as Record<string, unknown>)
+          .branch_protection as Record<string, unknown>;
         expect(result.details?.actions_needed).toContainEqual({
           action: 'enable_protection',
           branch: 'main',
-          rules: (
-            (mockConfig.defaults as Record<string, unknown>).branch_protection as Record<
-              string,
-              unknown
-            >
-          ).main,
+          rules: branchProtection.main,
         });
       });
 
@@ -220,16 +243,14 @@ describe('BranchProtectionCheck', () => {
 
         expect(result.compliant).toBe(false);
         expect(result.message).toContain("Branch 'main' should require status checks");
+        const branchProtection = (mockConfig.defaults as Record<string, unknown>)
+          .branch_protection as Record<string, unknown>;
+        const mainProtection = branchProtection.main as Record<string, unknown>;
         expect(result.details?.actions_needed).toContainEqual({
           action: 'update_protection',
           branch: 'main',
           field: 'required_status_checks',
-          expected: (
-            (mockConfig.defaults as Record<string, unknown>).branch_protection as Record<
-              string,
-              unknown
-            >
-          ).main.required_status_checks,
+          expected: mainProtection.required_status_checks,
         });
       });
 
@@ -274,6 +295,7 @@ describe('BranchProtectionCheck', () => {
       it('should detect unwanted status checks', async () => {
         const developConfig = {
           ...mockConfig,
+          version: 1 as const,
           defaults: {
             branch_protection: {
               main: {
@@ -282,7 +304,7 @@ describe('BranchProtectionCheck', () => {
             },
           },
         };
-        const developContext = { ...context, config: developConfig };
+        const developContext = { ...context, config: developConfig as unknown as ComplianceConfig };
 
         (mockClient.getBranchProtection as jest.Mock).mockResolvedValue(mockMainProtection);
 
@@ -362,16 +384,14 @@ describe('BranchProtectionCheck', () => {
 
         expect(result.compliant).toBe(false);
         expect(result.message).toContain("Branch 'main' should require pull request reviews");
+        const branchProtection = (mockConfig.defaults as Record<string, unknown>)
+          .branch_protection as Record<string, unknown>;
+        const mainProtection = branchProtection.main as Record<string, unknown>;
         expect(result.details?.actions_needed).toContainEqual({
           action: 'update_protection',
           branch: 'main',
           field: 'required_pull_request_reviews',
-          expected: (
-            (mockConfig.defaults as Record<string, unknown>).branch_protection as Record<
-              string,
-              unknown
-            >
-          ).main.required_pull_request_reviews,
+          expected: mainProtection.required_pull_request_reviews,
         });
       });
 
@@ -438,6 +458,7 @@ describe('BranchProtectionCheck', () => {
       it('should detect unwanted pull request reviews', async () => {
         const configWithoutReviews = {
           ...mockConfig,
+          version: 1 as const,
           defaults: {
             branch_protection: {
               main: {
@@ -446,7 +467,7 @@ describe('BranchProtectionCheck', () => {
             },
           },
         };
-        const contextWithoutReviews = { ...context, config: configWithoutReviews };
+        const contextWithoutReviews = { ...context, config: configWithoutReviews as unknown as ComplianceConfig };
 
         (mockClient.getBranchProtection as jest.Mock).mockResolvedValue(mockMainProtection);
 
@@ -479,22 +500,21 @@ describe('BranchProtectionCheck', () => {
 
         expect(result.compliant).toBe(false);
         expect(result.message).toContain("Branch 'main' should have push restrictions");
+        const branchProtection = (mockConfig.defaults as Record<string, unknown>)
+          .branch_protection as Record<string, unknown>;
+        const mainProtection = branchProtection.main as Record<string, unknown>;
         expect(result.details?.actions_needed).toContainEqual({
           action: 'update_protection',
           branch: 'main',
           field: 'restrictions',
-          expected: (
-            (mockConfig.defaults as Record<string, unknown>).branch_protection as Record<
-              string,
-              unknown
-            >
-          ).main.restrictions,
+          expected: mainProtection.restrictions,
         });
       });
 
       it('should detect unwanted restrictions', async () => {
         const configWithoutRestrictions = {
           ...mockConfig,
+          version: 1 as const,
           defaults: {
             branch_protection: {
               main: {
@@ -503,7 +523,7 @@ describe('BranchProtectionCheck', () => {
             },
           },
         };
-        const contextWithoutRestrictions = { ...context, config: configWithoutRestrictions };
+        const contextWithoutRestrictions = { ...context, config: configWithoutRestrictions as unknown as ComplianceConfig };
 
         (mockClient.getBranchProtection as jest.Mock).mockResolvedValue(mockMainProtection);
 
@@ -524,21 +544,7 @@ describe('BranchProtectionCheck', () => {
 
     describe('multiple branches', () => {
       it('should validate multiple branches', async () => {
-        const multiBranchConfig = {
-          ...mockConfig,
-          defaults: {
-            branch_protection: {
-              main: (mockConfig.defaults as Record<string, unknown>).branch_protection.main,
-              develop: (
-                (mockConfig.defaults as Record<string, unknown>).branch_protection as Record<
-                  string,
-                  unknown
-                >
-              ).develop,
-            },
-          },
-        };
-        const multiBranchContext = { ...context, config: multiBranchConfig as ComplianceConfig };
+        const multiBranchContext = { ...context, config: mockConfigWithDevelop as unknown as ComplianceConfig };
 
         (mockClient.getBranchProtection as jest.Mock)
           .mockResolvedValueOnce(mockMainProtection) // main branch
@@ -556,18 +562,21 @@ describe('BranchProtectionCheck', () => {
       });
 
       it('should detect issues across multiple branches', async () => {
+        const branchProtection = (mockConfigWithDevelop.defaults as Record<string, unknown>)
+          .branch_protection as Record<string, unknown>;
         const multiBranchConfig = {
-          ...mockConfig,
+          ...mockConfigWithDevelop,
+          version: 1 as const,
           defaults: {
             branch_protection: {
-              main: (mockConfig.defaults as Record<string, unknown>).branch_protection.main,
+              main: branchProtection.main,
               develop: {
                 enforce_admins: true, // develop expects true but has false
               },
             },
           },
         };
-        const multiBranchContext = { ...context, config: multiBranchConfig as ComplianceConfig };
+        const multiBranchContext = { ...context, config: multiBranchConfig as unknown as ComplianceConfig };
 
         (mockClient.getBranchProtection as jest.Mock)
           .mockResolvedValueOnce(mockMainProtection) // main branch (compliant)
@@ -615,6 +624,8 @@ describe('BranchProtectionCheck', () => {
 
     it('should return check result when in dry run mode', async () => {
       const dryRunContext = { ...context, dryRun: true };
+      // Mock getBranchProtection to return compliant protection
+      (mockClient.getBranchProtection as jest.Mock).mockResolvedValue(mockMainProtection);
 
       const result = await check.fix(dryRunContext);
 
@@ -692,19 +703,7 @@ describe('BranchProtectionCheck', () => {
     });
 
     it('should handle multiple actions', async () => {
-      const branchProtection = (mockConfig.defaults as Record<string, unknown>)
-        .branch_protection as Record<string, unknown>;
-      const multiBranchConfig = {
-        version: 1,
-        organization: 'test-org',
-        defaults: {
-          branch_protection: {
-            main: branchProtection.main,
-            develop: branchProtection.develop,
-          },
-        },
-      };
-      const multiBranchContext = { ...context, config: multiBranchConfig as ComplianceConfig };
+      const multiBranchContext = { ...context, config: mockConfigWithDevelop as unknown as ComplianceConfig };
 
       (mockClient.getBranchProtection as jest.Mock)
         .mockResolvedValueOnce(null) // main needs enabling
