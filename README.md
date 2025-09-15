@@ -36,6 +36,8 @@ jobs:
 
 ## Configuration
 
+📚 **[View Complete Configuration Reference](./docs/configuration-reference.md)** - Detailed documentation of all available options with examples.
+
 Create a `.github/compliance-config.yml` file in your repository:
 
 ```yaml
