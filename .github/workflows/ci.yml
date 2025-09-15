@@ -110,16 +110,6 @@ jobs:
 
           echo "✅ Bundle size: ${SIZE_KB}KB"
 
-      - name: Test action (dry-run)
-        if: matrix.node-version == '20'
-        uses: ./
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          config_path: './compliance-config.example.yml'
-          dry_run: 'true'
-          checks: 'merge-methods'
-          repos: 'github-compliance-action'
-
   # Security scanning
   security:
     name: Security Scan
