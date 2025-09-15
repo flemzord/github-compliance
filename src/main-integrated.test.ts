@@ -108,7 +108,9 @@ describe('main-integrated', () => {
     delete process.env.GITHUB_STEP_SUMMARY;
 
     // Setup default file system behavior
-    mockedFs.writeFileSync.mockImplementation(() => {});
+    mockedFs.writeFileSync.mockImplementation(() => {
+      /* mock */
+    });
 
     // Setup mock summary
     mockSummary = {
@@ -159,34 +161,35 @@ describe('main-integrated', () => {
         organization: { login: 'test-org' },
         repository: { full_name: 'test-org/test-repo' },
       },
-    } as any;
+    } as CheckContext;
 
     // Setup validator mock - when called with file path, returns object with config and warnings
     mockedValidateFromString.mockResolvedValue({
       config: mockConfig,
       warnings: [],
-    } as any);
+    } as { config: ComplianceConfig; warnings: string[] });
 
     // Setup client mock
     mockClient = {
       setOwner: jest.fn(),
-    } as any;
+    } as GitHubClient;
     mockedGitHubClient.mockImplementation(() => mockClient);
 
     // Setup reporter mocks
     mockJsonReporterInstance = {
       generateReport: jest.fn().mockReturnValue('{"test": "json"}'),
-    } as any;
+    } as JsonReporter;
     mockMarkdownReporterInstance = {
       generateReport: jest.fn().mockReturnValue('# Test Report'),
       generateSummary: jest.fn().mockReturnValue('## Summary'),
-    } as any;
+    } as MarkdownReporter;
     mockedJsonReporter.mockImplementation(() => mockJsonReporterInstance);
     mockedMarkdownReporter.mockImplementation(() => mockMarkdownReporterInstance);
 
     // Setup runner mock
     mockRunner = {
       run: jest.fn().mockResolvedValue(mockRunnerReport),
+      // biome-ignore lint/suspicious/noExplicitAny: Mock ComplianceRunner for testing
     } as any;
     mockedComplianceRunner.mockImplementation(() => mockRunner);
   });
@@ -316,6 +319,7 @@ describe('main-integrated', () => {
         payload: {
           repository: { full_name: 'owner/repo' },
         },
+        // biome-ignore lint/suspicious/noExplicitAny: Mock CheckContext for testing
       } as any;
 
       await run();
@@ -339,6 +343,7 @@ describe('main-integrated', () => {
       mockedValidateFromString.mockResolvedValue({
         config: mockConfig,
         warnings: ['Warning 1', 'Warning 2'],
+        // biome-ignore lint/suspicious/noExplicitAny: Mock validation result for testing
       } as any);
 
       await run();
@@ -362,6 +367,7 @@ describe('main-integrated', () => {
       mockedValidateFromString.mockResolvedValue({
         config: mockConfig,
         warnings: [],
+        // biome-ignore lint/suspicious/noExplicitAny: Mock validation result for testing
       } as any);
 
       await run();
@@ -426,7 +432,9 @@ describe('main-integrated', () => {
   describe('compliance status handling', () => {
     beforeEach(() => {
       // Reset the writeFileSync mock to not throw errors for these tests
-      mockedFs.writeFileSync.mockImplementation(() => {});
+      mockedFs.writeFileSync.mockImplementation(() => {
+        /* mock */
+      });
     });
 
     it('should set failed status for non-compliant repositories in production mode', async () => {
@@ -586,6 +594,7 @@ describe('main-integrated', () => {
     it('should not set owner when no context is available', async () => {
       mockedGithub.context = {
         payload: {},
+        // biome-ignore lint/suspicious/noExplicitAny: Mock GitHub context for testing
       } as any;
 
       await run();

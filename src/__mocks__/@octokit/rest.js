@@ -171,7 +171,7 @@ const mockRest = {
 };
 
 const mockPaginate = {
-  iterator: jest.fn().mockImplementation((fn, options) => {
+  iterator: jest.fn().mockImplementation((fn, _options) => {
     // Mock pagination iterator that yields one page of data
     return [
       {
@@ -253,7 +253,7 @@ class MockOctokit {
     this.paginate = mockPaginate;
   }
 
-  static plugin(plugin) {
+  static plugin(_plugin) {
     return MockOctokit;
   }
 }

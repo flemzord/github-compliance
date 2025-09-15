@@ -86,10 +86,18 @@ describe('SecurityScanningCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {});
-    mockCore.warning.mockImplementation(() => {});
-    mockCore.error.mockImplementation(() => {});
-    mockCore.debug.mockImplementation(() => {});
+    mockCore.info.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.warning.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.error.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.debug.mockImplementation(() => {
+      /* mock */
+    });
   });
 
   describe('shouldRun', () => {

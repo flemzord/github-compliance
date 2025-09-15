@@ -6,8 +6,10 @@ jest.mock('@actions/core');
 const mockCore = core as jest.Mocked<typeof core>;
 
 // Helper to create a mock GitHubClient with custom octokit
+// biome-ignore lint/suspicious/noExplicitAny: Mock object for testing
 const createMockClient = (octokitMock: any) => {
   const client = new GitHubClient({ token: 'test-token' });
+  // biome-ignore lint/suspicious/noExplicitAny: Testing internal property
   (client as any).octokit = octokitMock;
   return client;
 };
@@ -34,6 +36,7 @@ describe('GitHubClient Integration Tests', () => {
 
       // Test throttle configuration by accessing the internal Octokit instance
       // This will help cover the throttle callback code paths
+      // biome-ignore lint/suspicious/noExplicitAny: Testing internal Octokit configuration
       const throttleOptions = (client as any).octokit.constructor.name;
       expect(throttleOptions).toBeDefined();
     });
@@ -469,6 +472,7 @@ describe('GitHubClient Integration Tests', () => {
         token: 'test-token',
         throttle: {
           enabled: true,
+          // biome-ignore lint/suspicious/noExplicitAny: Testing undefined value in throttle config
           retries: undefined as any,
           retryDelay: 1000,
         },
@@ -668,6 +672,7 @@ describe('GitHubClient Integration Tests', () => {
           repos: {
             getBranchProtection: jest.fn().mockImplementation(() => {
               const error = new Error('Not Found');
+              // biome-ignore lint/suspicious/noExplicitAny: Adding status property to Error
               (error as any).status = 404;
               throw error;
             }),
@@ -877,6 +882,7 @@ describe('GitHubClient Integration Tests', () => {
       const client = new GitHubClient({ token: 'test-token' });
 
       // Override the entire method to force the outer catch to execute
+      // biome-ignore lint/suspicious/noExplicitAny: Testing method override for error handling
       (client as any).getSecuritySettings = async (owner: string, repo: string) => {
         const settings = {};
         try {

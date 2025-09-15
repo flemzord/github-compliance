@@ -49,7 +49,7 @@ const mockConfig: ComplianceConfig = {
       specific_repos: {
         'old-repo': { archived: true },
         'new-repo': { archived: false },
-      } as any, // type system mismatch, but code expects object
+      } as Record<string, { archived: boolean }>,
     },
   },
 };
@@ -67,10 +67,18 @@ describe('ArchivedReposCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {});
-    mockCore.warning.mockImplementation(() => {});
-    mockCore.error.mockImplementation(() => {});
-    mockCore.debug.mockImplementation(() => {});
+    mockCore.info.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.warning.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.error.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.debug.mockImplementation(() => {
+      /* mock */
+    });
   });
 
   describe('shouldRun', () => {
@@ -152,7 +160,7 @@ describe('ArchivedReposCheck', () => {
               specific_repos: {
                 'old-repo': { archived: true },
                 'new-repo': { archived: false },
-              } as any,
+              } as Record<string, { archived: boolean }>,
             },
           },
         };
@@ -213,7 +221,7 @@ describe('ArchivedReposCheck', () => {
               specific_repos: {
                 'old-repo': { archived: true },
                 'new-repo': { archived: false },
-              } as any,
+              } as Record<string, { archived: boolean }>,
             },
           },
         };

@@ -34,7 +34,7 @@ const mockRepository: Repository = {
 };
 
 // Mock ComplianceConfig - The implementation expects branch_protection to be an object with branch names as keys
-const mockConfig: any = {
+const mockConfig: Record<string, unknown> = {
   version: 1,
   organization: 'test-org',
   defaults: {
@@ -117,10 +117,18 @@ describe('BranchProtectionCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {});
-    mockCore.warning.mockImplementation(() => {});
-    mockCore.error.mockImplementation(() => {});
-    mockCore.debug.mockImplementation(() => {});
+    mockCore.info.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.warning.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.error.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.debug.mockImplementation(() => {
+      /* mock */
+    });
   });
 
   describe('shouldRun', () => {
@@ -750,7 +758,8 @@ describe('BranchProtectionCheck', () => {
         restrictions: { users: ['admin'] },
       };
 
-      const result = check['buildProtectionRules'](config);
+      // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+      const result = (check as any).buildProtectionRules(config);
 
       expect(result).toEqual({
         required_status_checks: { strict: true, contexts: ['test'] },
@@ -766,7 +775,8 @@ describe('BranchProtectionCheck', () => {
         // other fields undefined
       };
 
-      const result = check['buildProtectionRules'](config);
+      // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+      const result = (check as any).buildProtectionRules(config);
 
       expect(result).toEqual({
         required_status_checks: { strict: true },
@@ -776,7 +786,8 @@ describe('BranchProtectionCheck', () => {
     it('should handle empty config', () => {
       const config = {};
 
-      const result = check['buildProtectionRules'](config);
+      // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+      const result = (check as any).buildProtectionRules(config);
 
       expect(result).toEqual({});
     });

@@ -126,10 +126,18 @@ describe('TeamPermissionsCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {});
-    mockCore.warning.mockImplementation(() => {});
-    mockCore.error.mockImplementation(() => {});
-    mockCore.debug.mockImplementation(() => {});
+    mockCore.info.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.warning.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.error.mockImplementation(() => {
+      /* mock */
+    });
+    mockCore.debug.mockImplementation(() => {
+      /* mock */
+    });
   });
 
   describe('shouldRun', () => {
@@ -364,7 +372,8 @@ describe('TeamPermissionsCheck', () => {
           },
         };
 
-        const permissionLevel = check['getCollaboratorPermissionLevel'](
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        const permissionLevel = (check as any).getCollaboratorPermissionLevel(
           adminCollaborator.permissions
         );
         expect(permissionLevel).toBe('admin');
@@ -381,7 +390,8 @@ describe('TeamPermissionsCheck', () => {
           },
         };
 
-        const permissionLevel = check['getCollaboratorPermissionLevel'](
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        const permissionLevel = (check as any).getCollaboratorPermissionLevel(
           maintainCollaborator.permissions
         );
         expect(permissionLevel).toBe('maintain');
@@ -398,7 +408,8 @@ describe('TeamPermissionsCheck', () => {
           },
         };
 
-        const permissionLevel = check['getCollaboratorPermissionLevel'](
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        const permissionLevel = (check as any).getCollaboratorPermissionLevel(
           writeCollaborator.permissions
         );
         expect(permissionLevel).toBe('write');
@@ -415,7 +426,8 @@ describe('TeamPermissionsCheck', () => {
           },
         };
 
-        const permissionLevel = check['getCollaboratorPermissionLevel'](
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        const permissionLevel = (check as any).getCollaboratorPermissionLevel(
           triageCollaborator.permissions
         );
         expect(permissionLevel).toBe('triage');
@@ -432,7 +444,8 @@ describe('TeamPermissionsCheck', () => {
           },
         };
 
-        const permissionLevel = check['getCollaboratorPermissionLevel'](
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        const permissionLevel = (check as any).getCollaboratorPermissionLevel(
           readCollaborator.permissions
         );
         expect(permissionLevel).toBe('read');
@@ -441,27 +454,33 @@ describe('TeamPermissionsCheck', () => {
 
     describe('permission mapping for API calls', () => {
       it('should map read to pull', () => {
-        expect(check['mapPermissionLevel']('read')).toBe('pull');
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        expect((check as any).mapPermissionLevel('read')).toBe('pull');
       });
 
       it('should map write to push', () => {
-        expect(check['mapPermissionLevel']('write')).toBe('push');
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        expect((check as any).mapPermissionLevel('write')).toBe('push');
       });
 
       it('should map admin to admin', () => {
-        expect(check['mapPermissionLevel']('admin')).toBe('admin');
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        expect((check as any).mapPermissionLevel('admin')).toBe('admin');
       });
 
       it('should map maintain to maintain', () => {
-        expect(check['mapPermissionLevel']('maintain')).toBe('maintain');
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        expect((check as any).mapPermissionLevel('maintain')).toBe('maintain');
       });
 
       it('should map triage to triage', () => {
-        expect(check['mapPermissionLevel']('triage')).toBe('triage');
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        expect((check as any).mapPermissionLevel('triage')).toBe('triage');
       });
 
       it('should default unknown permissions to pull', () => {
-        expect(check['mapPermissionLevel']('unknown')).toBe('pull');
+        // biome-ignore lint/suspicious/noExplicitAny: Testing private method
+        expect((check as any).mapPermissionLevel('unknown')).toBe('pull');
       });
     });
 

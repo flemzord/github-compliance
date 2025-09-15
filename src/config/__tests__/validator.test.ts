@@ -231,10 +231,10 @@ defaults:
         const result = await validateFromString(tempPath);
         expect(result).toHaveProperty('config');
         expect(result).toHaveProperty('warnings');
-        expect((result as any).warnings).toContain(
+        expect((result as { warnings: string[] }).warnings).toContain(
           'All merge methods are disabled, repositories will not be able to merge pull requests'
         );
-        expect((result as any).warnings).toContain(
+        expect((result as { warnings: string[] }).warnings).toContain(
           'No admin teams configured - ensure at least one team has admin access'
         );
       } finally {

@@ -24,8 +24,8 @@ describe('check-registry', () => {
 
     it('should throw an error for null/undefined check names', () => {
       // Additional edge cases to ensure robust coverage
-      expect(() => getCheck(null as any)).toThrow('Unknown check: null');
-      expect(() => getCheck(undefined as any)).toThrow('Unknown check: undefined');
+      expect(() => getCheck(null as unknown as string)).toThrow('Unknown check: null');
+      expect(() => getCheck(undefined as unknown as string)).toThrow('Unknown check: undefined');
     });
   });
 
