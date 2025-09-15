@@ -41,74 +41,78 @@ jobs:
 Create a `.github/compliance-config.yml` file in your repository:
 
 ```yaml
-# Organization or user to scan
-owner: your-org-name
+# Compliance configuration version
+version: 1
 
-# Repository discovery settings
-repositories:
-  # Filter repositories to check
-  filter:
-    include: ["*"]  # Glob patterns for repositories to include
-    exclude: ["*-archive", "test-*"]  # Glob patterns to exclude
-
-  # Limit number of repositories (useful for testing)
-  limit: 100
-
-# Global settings applied to all repositories
-global:
-  # Branch protection settings
-  branch_protection:
-    enabled: true
-    patterns: ["main", "master"]
-    settings:
-      required_reviews: 2
-      dismiss_stale_reviews: true
-      require_code_owner_reviews: true
-      enforce_admins: true
-      require_up_to_date: true
-
-  # Security scanning settings
-  security_scanning:
-    dependabot: true
-    secret_scanning: true
-    secret_scanning_push_protection: true
-    code_scanning: true
-
-  # Merge method restrictions
+# Default settings applied to all repositories
+defaults:
+  # Merge methods configuration
   merge_methods:
     allow_merge_commit: false
     allow_squash_merge: true
-    allow_rebase_merge: true
+    allow_rebase_merge: false
+
+  # Branch protection rules
+  branch_protection:
+    patterns: ["main", "master", "release/*"]
+    enforce_admins: true
+    required_pull_request_reviews:
+      dismiss_stale_reviews: true
+      required_approving_review_count: 2
+      require_code_owner_reviews: true
+    required_status_checks:
+      strict: true
+      contexts: ["ci/tests", "ci/lint"]
+    restrictions:
+      users: []
+      teams: ["maintainers"]
+    allow_force_pushes: false
+    allow_deletions: false
+    required_conversation_resolution: true
+
+  # Security settings
+  security:
+    secret_scanning: "enabled"
+    secret_scanning_push_protection: "enabled"
+    dependabot_alerts: true
+    code_scanning: true
 
   # Team permissions
-  team_permissions:
-    enforce_teams_only: true
-    allowed_teams:
-      - name: "engineering"
-        permission: "push"
-      - name: "admins"
+  permissions:
+    remove_individual_collaborators: true
+    teams:
+      - team: "admins"
         permission: "admin"
+      - team: "engineering"
+        permission: "write"
 
-# Repository-specific rules
+  # Archived repository settings
+  archived_repos:
+    archive_inactive: true
+    inactive_days: 365
+
+# Repository-specific rules (optional)
 rules:
+  # Private production repositories get stricter settings
   - match:
       repositories: ["*-prod", "*-production"]
       only_private: true
     apply:
       branch_protection:
         patterns: ["main", "release/*"]
-        settings:
-          required_reviews: 3
-          enforce_admins: true
+        required_pull_request_reviews:
+          required_approving_review_count: 3
+        enforce_admins: true
 
+  # Documentation repositories have different merge methods
   - match:
       repositories: ["docs-*", "*-website"]
     apply:
       merge_methods:
         allow_merge_commit: true
-      team_permissions:
-        allowed_teams:
-          - name: "docs-team"
+      permissions:
+        teams:
+          - team: "docs-team"
             permission: "maintain"
 ```
 

@@ -25,7 +25,7 @@ async function testCollaborators() {
       per_page: 100,
     });
     console.log(`   Found ${allCollabs.data.length} collaborators`);
-    allCollabs.data.forEach(c => {
+    allCollabs.data.forEach((c) => {
       console.log(`   - ${c.login} (${c.type})`);
     });
 
@@ -38,7 +38,7 @@ async function testCollaborators() {
       per_page: 100,
     });
     console.log(`   Found ${directCollabs.data.length} direct collaborators`);
-    directCollabs.data.forEach(c => {
+    directCollabs.data.forEach((c) => {
       console.log(`   - ${c.login} (${c.type})`);
     });
 
@@ -50,10 +50,9 @@ async function testCollaborators() {
       per_page: 100,
     });
     console.log(`   Found ${teams.data.length} teams`);
-    teams.data.forEach(t => {
+    teams.data.forEach((t) => {
       console.log(`   - ${t.name} (${t.permission})`);
     });
-
   } catch (error) {
     console.error('Error:', error.message);
   }

@@ -28,22 +28,48 @@ export class BranchProtectionCheck extends BaseCheck {
         actions_needed: [],
       };
 
-      // Check each configured branch
-      for (const [branchName, expectedRules] of Object.entries(config)) {
+      // Extract patterns and other protection rules
+      const { patterns, ...protectionRules } = config as unknown as {
+        patterns?: string[];
+        [key: string]: unknown;
+      };
+
+      if (!patterns || patterns.length === 0) {
+        core.warning('No branch patterns specified in branch protection configuration');
+        return this.createCompliantResult('No branch patterns to protect');
+      }
+
+      // For now, we'll check exact branch names (wildcards would need branch listing)
+      // In a production scenario, you'd want to list all branches and match against patterns
+      for (const branchPattern of patterns) {
+        // For simplicity, treat patterns as exact branch names for now
+        // TODO: Implement wildcard matching by listing branches
+        const branchName = branchPattern;
+
+        // First check if the branch exists by trying to get it
+        try {
+          await context.client.getBranch(owner, repo, branchName);
+        } catch (_branchError) {
+          core.warning(
+            `Branch '${branchName}' does not exist in ${repository.full_name}, skipping protection check`
+          );
+          continue;
+        }
+
         const currentProtection = await context.client.getBranchProtection(owner, repo, branchName);
         (details.branches as Record<string, unknown>)[branchName] = {
           current: currentProtection,
-          expected: expectedRules,
+          expected: protectionRules,
         };
 
         if (!currentProtection) {
-          if (expectedRules) {
+          if (Object.keys(protectionRules).length > 0) {
             issues.push(`Branch '${branchName}' should have protection rules but has none`);
             if (details.actions_needed) {
               details.actions_needed.push({
                 action: 'enable_protection',
                 branch: branchName,
-                rules: expectedRules,
+                rules: protectionRules,
               });
             }
           }
@@ -51,9 +77,12 @@ export class BranchProtectionCheck extends BaseCheck {
         }
 
         // Check required status checks
-        if (expectedRules.required_status_checks !== undefined) {
+        if (protectionRules.required_status_checks !== undefined) {
           const current = currentProtection.required_status_checks;
-          const expected = expectedRules.required_status_checks;
+          const expected = protectionRules.required_status_checks as {
+            strict?: boolean;
+            contexts?: string[];
+          } | null;
 
           if (!current && expected) {
             issues.push(`Branch '${branchName}' should require status checks`);
@@ -100,12 +129,12 @@ export class BranchProtectionCheck extends BaseCheck {
 
         // Check enforce admins
         if (
-          expectedRules.enforce_admins !== undefined &&
+          protectionRules.enforce_admins !== undefined &&
           (currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)
-            ?.enabled !== expectedRules.enforce_admins
+            ?.enabled !== protectionRules.enforce_admins
         ) {
           issues.push(
-            `Branch '${branchName}' admin enforcement should be ${expectedRules.enforce_admins ? 'enabled' : 'disabled'} ` +
+            `Branch '${branchName}' admin enforcement should be ${protectionRules.enforce_admins ? 'enabled' : 'disabled'} ` +
               `but is ${(currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)?.enabled ? 'enabled' : 'disabled'}`
           );
           if (details.actions_needed) {
@@ -113,15 +142,19 @@ export class BranchProtectionCheck extends BaseCheck {
               action: 'update_protection',
               branch: branchName,
               field: 'enforce_admins',
-              expected: expectedRules.enforce_admins,
+              expected: protectionRules.enforce_admins,
             });
           }
         }
 
         // Check required pull request reviews
-        if (expectedRules.required_pull_request_reviews !== undefined) {
+        if (protectionRules.required_pull_request_reviews !== undefined) {
           const current = currentProtection.required_pull_request_reviews;
-          const expected = expectedRules.required_pull_request_reviews;
+          const expected = protectionRules.required_pull_request_reviews as {
+            required_approving_review_count?: number;
+            dismiss_stale_reviews?: boolean;
+            require_code_owner_reviews?: boolean;
+          } | null;
 
           if (!current && expected) {
             issues.push(`Branch '${branchName}' should require pull request reviews`);
@@ -180,9 +213,9 @@ export class BranchProtectionCheck extends BaseCheck {
         }
 
         // Check restrictions
-        if (expectedRules.restrictions !== undefined) {
+        if (protectionRules.restrictions !== undefined) {
           const current = currentProtection.restrictions;
-          const expected = expectedRules.restrictions;
+          const expected = protectionRules.restrictions;
 
           if (!current && expected) {
             issues.push(`Branch '${branchName}' should have push restrictions`);
@@ -259,39 +292,71 @@ export class BranchProtectionCheck extends BaseCheck {
       // Apply each needed action
       for (const action of actions_needed) {
         try {
+          // Debug logging
+          core.debug(`Processing action: ${JSON.stringify(action)}`);
+
           switch (action.action) {
             case 'enable_protection':
-            case 'update_protection':
+            case 'update_protection': {
+              const branchName = action.branch as string;
+
+              // For update_protection with specific field, we need to build the full rules
+              let rulesToApply: Record<string, unknown>;
+
+              if (action.action === 'enable_protection' && action.rules) {
+                // For enable_protection, use the provided rules
+                rulesToApply = action.rules as Record<string, unknown>;
+              } else if (action.action === 'update_protection' && action.field) {
+                // For update_protection with a specific field, extract the protection rules
+                // (excluding patterns) and update only the specific field
+                const { patterns: _patterns, ...baseProtectionRules } = config as unknown as {
+                  patterns?: string[];
+                  [key: string]: unknown;
+                };
+                rulesToApply = { ...baseProtectionRules };
+
+                // Update the specific field
+                if (action.expected !== undefined) {
+                  rulesToApply[action.field as string] = action.expected;
+                }
+              } else {
+                // Fallback - use provided rules or extract protection rules from config
+                if (action.rules) {
+                  rulesToApply = action.rules as Record<string, unknown>;
+                } else {
+                  const { patterns: _patterns2, ...baseProtectionRules } = config as unknown as {
+                    patterns?: string[];
+                    [key: string]: unknown;
+                  };
+                  rulesToApply = baseProtectionRules;
+                }
+              }
+
               await context.client.updateBranchProtection(
                 owner,
                 repo,
-                action.branch as string,
-                this.buildProtectionRules(
-                  (action.rules ||
-                    (config as unknown as Record<string, unknown>)[
-                      action.branch as string
-                    ]) as Record<string, unknown>
-                )
+                branchName,
+                this.buildProtectionRules(rulesToApply)
               );
               appliedActions.push({
                 action: action.action,
                 details: {
-                  branch: action.branch,
-                  rules:
-                    action.rules ||
-                    (config as unknown as Record<string, unknown>)[action.branch as string],
+                  branch: branchName,
+                  rules: rulesToApply,
                 },
               });
               core.info(
-                `✅ ${action.action === 'enable_protection' ? 'Enabled' : 'Updated'} protection for ${action.branch} in ${repository.full_name}`
+                `✅ ${action.action === 'enable_protection' ? 'Enabled' : 'Updated'} protection for ${branchName} in ${repository.full_name}`
               );
               break;
+            }
           }
         } catch (actionError) {
           const errorMessage =
             actionError instanceof Error ? actionError.message : String(actionError);
+          const branchInfo = action.branch || action.field || 'unknown';
           core.error(
-            `Failed to apply ${action.action} for ${action.branch} in ${repository.full_name}: ${errorMessage}`
+            `Failed to apply ${action.action} for branch '${branchInfo}' in ${repository.full_name}: ${errorMessage}`
           );
         }
       }

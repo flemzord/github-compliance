@@ -78,6 +78,16 @@ const mockRest = {
         },
       },
     }),
+    getBranch: jest.fn().mockResolvedValue({
+      data: {
+        name: 'main',
+        commit: {
+          sha: 'abc123',
+          url: 'https://api.github.com/repos/owner/repo/commits/abc123',
+        },
+        protected: true,
+      },
+    }),
     getBranchProtection: jest.fn().mockResolvedValue({
       data: {
         required_status_checks: {

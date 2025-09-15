@@ -27,6 +27,7 @@ Options:
   --format <type>          Report format: json or markdown (default: markdown)
   --output, -o <path>      Output file path (default: compliance-report.[md|json])
   --verbose, -v            Enable verbose logging
+  --quiet, -q              Minimal output (only errors and summary)
   --help, -h               Show this help message
 
 Examples:
@@ -57,44 +58,64 @@ interface CLIOptions {
   format: 'json' | 'markdown';
   output?: string | undefined;
   verbose: boolean;
+  quiet: boolean;
 }
 
-class Logger {
-  private verbose: boolean;
+type LogLevel = 'quiet' | 'normal' | 'verbose';
 
-  constructor(verbose = false) {
-    this.verbose = verbose;
+class Logger {
+  private level: LogLevel;
+
+  constructor(verbose = false, quiet = false) {
+    if (quiet) {
+      this.level = 'quiet';
+    } else if (verbose) {
+      this.level = 'verbose';
+    } else {
+      this.level = 'normal';
+    }
   }
 
   info(message: string): void {
-    console.log(`ℹ️  ${message}`);
+    if (this.level !== 'quiet') {
+      console.log(`ℹ️  ${message}`);
+    }
   }
 
   success(message: string): void {
-    console.log(`✅ ${message}`);
+    if (this.level !== 'quiet') {
+      console.log(`✅ ${message}`);
+    }
   }
 
   warning(message: string): void {
-    console.warn(`⚠️  ${message}`);
+    if (this.level !== 'quiet') {
+      console.warn(`⚠️  ${message}`);
+    }
   }
 
   error(message: string): void {
+    // Always show errors
     console.error(`❌ ${message}`);
   }
 
   debug(message: string): void {
-    if (this.verbose) {
+    if (this.level === 'verbose') {
       console.log(`🔍 ${message}`);
     }
   }
 
   group(title: string): void {
-    console.log(`\n📦 ${title}`);
-    console.log('─'.repeat(50));
+    if (this.level === 'verbose') {
+      console.log(`\n📦 ${title}`);
+      console.log('─'.repeat(50));
+    }
   }
 
   endGroup(): void {
-    console.log('─'.repeat(50));
+    if (this.level === 'verbose') {
+      console.log('─'.repeat(50));
+    }
   }
 }
 
@@ -112,6 +133,7 @@ function parseCliArgs(): CLIOptions {
       format: { type: 'string', default: 'markdown' },
       output: { type: 'string' },
       verbose: { type: 'boolean', short: 'v', default: false },
+      quiet: { type: 'boolean', short: 'q', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
     allowPositionals: true,
@@ -142,6 +164,12 @@ function parseCliArgs(): CLIOptions {
     process.exit(1);
   }
 
+  // Check for conflicting verbose and quiet flags
+  if (values.verbose && values.quiet) {
+    console.error('Error: --verbose and --quiet cannot be used together');
+    process.exit(1);
+  }
+
   return {
     config: values.config,
     token,
@@ -153,12 +181,13 @@ function parseCliArgs(): CLIOptions {
     format: format as 'json' | 'markdown',
     output: values.output as string | undefined,
     verbose: values.verbose as boolean,
+    quiet: values.quiet as boolean,
   };
 }
 
 async function main(): Promise<void> {
   const options = parseCliArgs();
-  const logger = new Logger(options.verbose);
+  const logger = new Logger(options.verbose, options.quiet);
 
   try {
     logger.info('🚀 GitHub Compliance CLI starting...');
@@ -218,8 +247,19 @@ async function main(): Promise<void> {
     }
 
     // Mock core functions for CLI usage
+    // In quiet mode, suppress most info logs except critical ones
     const mockCore = {
-      info: (msg: string) => logger.info(msg),
+      info: (msg: string) => {
+        // Filter out verbose progress messages in quiet mode
+        if (options.quiet) {
+          // Only show critical info messages in quiet mode
+          if (msg.includes('✅') || msg.includes('❌') || msg.includes('Fixed:')) {
+            logger.info(msg);
+          }
+        } else {
+          logger.info(msg);
+        }
+      },
       warning: (msg: string) => logger.warning(msg),
       error: (msg: string) => logger.error(msg),
       debug: (msg: string) => logger.debug(msg),

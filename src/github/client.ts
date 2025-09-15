@@ -142,6 +142,23 @@ export class GitHubClient {
   }
 
   /**
+   * Get information about a specific branch
+   */
+  async getBranch(owner: string, repo: string, branch: string): Promise<{ name: string }> {
+    try {
+      const response = await this.octokit.rest.repos.getBranch({
+        owner,
+        repo,
+        branch,
+      });
+      return { name: response.data.name };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get branch ${owner}/${repo}/${branch}: ${message}`);
+    }
+  }
+
+  /**
    * Get branch protection rules for a specific branch
    */
   async getBranchProtection(

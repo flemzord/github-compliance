@@ -78,9 +78,7 @@ export class TeamPermissionsCheck extends BaseCheck {
         const expectedTeamSlugs = config.teams.map((t) => t.team);
         for (const currentTeam of currentTeams) {
           if (!expectedTeamSlugs.includes(currentTeam.slug)) {
-            issues.push(
-              `Team '${currentTeam.slug}' has unauthorized access and should be removed`
-            );
+            issues.push(`Team '${currentTeam.slug}' has unauthorized access and should be removed`);
             core.warning(
               `Team '${currentTeam.slug}' has access to ${repository.full_name} but is not in configuration - will be removed`
             );

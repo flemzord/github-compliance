@@ -17,6 +17,7 @@ class TestCheck extends BaseCheck {
 const mockClient: Partial<GitHubClient> = {
   getRepository: jest.fn(),
   updateRepository: jest.fn(),
+  getBranch: jest.fn(),
   getBranchProtection: jest.fn(),
   updateBranchProtection: jest.fn(),
   getTeamPermissions: jest.fn(),
