@@ -1,7 +1,7 @@
 {
   "name": "github-compliance-action",
   "version": "1.0.0",
-  "description": "GitHub Action for verifying and fixing repository compliance based on YAML configuration",
+  "description": "🛡️ Enforce repository compliance standards across your GitHub organization",
   "main": "dist/index.js",
   "scripts": {
     "build": "ncc build src/main.ts -o dist --source-map --license licenses.txt",
