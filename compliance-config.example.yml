@@ -1,0 +1,134 @@
+# GitHub Compliance Configuration Example
+# This file defines the compliance rules for your GitHub organization
+
+version: 1
+organization: "your-org-name"  # Optional if running in organization context
+
+# Default settings applied to all repositories
+defaults:
+  # Merge methods configuration
+  merge_methods:
+    allow_merge_commit: false
+    allow_squash_merge: true
+    allow_rebase_merge: false
+
+  # Branch protection rules
+  branch_protection:
+    patterns: ["main", "master", "release/*"]
+    enforce_admins: true
+    required_reviews:
+      dismiss_stale_reviews: true
+      required_approving_review_count: 2
+      require_code_owner_reviews: true
+      require_last_push_approval: false
+    required_status_checks:
+      strict: true
+      contexts: ["ci/tests", "ci/lint"]
+    restrictions:
+      users: []
+      teams: ["admins", "maintainers"]
+    allow_force_pushes: false
+    allow_deletions: false
+    required_conversation_resolution: true
+    lock_branch: false
+    allow_fork_syncing: false
+
+  # Security settings
+  security:
+    secret_scanning: "enabled"  # enabled, disabled, auto
+    secret_scanning_push_protection: "enabled"
+    dependabot_alerts: true
+    dependabot_updates: true
+    code_scanning_recommended: true
+
+  # Team permissions
+  permissions:
+    remove_individual_collaborators: true
+    teams:
+      - team: "admins"
+        permission: "admin"
+      - team: "developers"
+        permission: "write"
+      - team: "qa"
+        permission: "triage"
+
+  # Archived repository settings
+  archived_repos:
+    admin_team_only: true
+    archive_inactive: true
+    inactive_days: 365
+    unarchive_active: false
+    archive_patterns: ["*-deprecated", "*-legacy", "*-old"]
+    keep_active_patterns: ["*-template", "*-example"]
+    specific_repos:
+      old-project: true  # Should be archived
+      archived-docs: true  # Should be archived
+
+# Override rules for specific repositories
+rules:
+  # Private repositories get stricter security settings
+  - match:
+      only_private: true
+    apply:
+      security:
+        secret_scanning_push_protection: "enabled"
+        dependabot_alerts: true
+        dependabot_updates: true
+
+  # Public repositories may have different merge methods
+  - match:
+      only_private: false
+    apply:
+      merge_methods:
+        allow_merge_commit: true
+        allow_squash_merge: true
+        allow_rebase_merge: false
+
+  # Specific repository patterns
+  - match:
+      repositories: ["*-poc", "*-experiment"]
+    apply:
+      branch_protection:
+        patterns: ["main"]
+        enforce_admins: false
+        required_reviews:
+          required_approving_review_count: 1
+
+  # Infrastructure repositories
+  - match:
+      repositories: ["infrastructure", "terraform-*", "k8s-*"]
+    apply:
+      branch_protection:
+        patterns: ["main", "production"]
+        enforce_admins: true
+        required_reviews:
+          required_approving_review_count: 3
+          require_code_owner_reviews: true
+      permissions:
+        teams:
+          - team: "infrastructure"
+            permission: "admin"
+          - team: "developers"
+            permission: "read"
+
+  # Documentation repositories
+  - match:
+      repositories: ["docs", "*-docs", "*.github.io"]
+    apply:
+      merge_methods:
+        allow_merge_commit: true
+        allow_squash_merge: true
+        allow_rebase_merge: true
+      branch_protection:
+        patterns: ["main"]
+        required_reviews:
+          required_approving_review_count: 1
+
+# Compliance checks to run
+checks:
+  enabled:
+    - "merge-methods"
+    - "team-permissions"
+    - "branch-protection"
+    - "security-scanning"
+    - "archived-repos"

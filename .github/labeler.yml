@@ -1,0 +1,20 @@
+# Simple labeler configuration
+documentation:
+  - changed-files:
+    - any-glob-to-any-file: ['**/*.md', 'docs/**']
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file: ['**/*.test.ts', '**/__tests__/**']
+
+source:
+  - changed-files:
+    - any-glob-to-any-file: ['src/**/*.ts', '!src/**/*.test.ts']
+
+config:
+  - changed-files:
+    - any-glob-to-any-file: ['*.json', '*.yml', '*.yaml', 'tsconfig.json', 'biome.json']
+
+github-actions:
+  - changed-files:
+    - any-glob-to-any-file: ['.github/**']
