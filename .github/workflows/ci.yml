@@ -233,6 +233,7 @@ jobs:
     if: needs.validate.outputs.is-release == 'true'
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -242,18 +243,22 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install and build
         run: |
           npm ci
           npm run build
 
+      - name: Publish to NPM
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/index.js
-            action.yml
             compliance-config.example.yml
           generate_release_notes: true
           draft: false
