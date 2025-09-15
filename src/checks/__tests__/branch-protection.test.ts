@@ -467,7 +467,10 @@ describe('BranchProtectionCheck', () => {
             },
           },
         };
-        const contextWithoutReviews = { ...context, config: configWithoutReviews as unknown as ComplianceConfig };
+        const contextWithoutReviews = {
+          ...context,
+          config: configWithoutReviews as unknown as ComplianceConfig,
+        };
 
         (mockClient.getBranchProtection as jest.Mock).mockResolvedValue(mockMainProtection);
 
@@ -523,7 +526,10 @@ describe('BranchProtectionCheck', () => {
             },
           },
         };
-        const contextWithoutRestrictions = { ...context, config: configWithoutRestrictions as unknown as ComplianceConfig };
+        const contextWithoutRestrictions = {
+          ...context,
+          config: configWithoutRestrictions as unknown as ComplianceConfig,
+        };
 
         (mockClient.getBranchProtection as jest.Mock).mockResolvedValue(mockMainProtection);
 
@@ -544,7 +550,10 @@ describe('BranchProtectionCheck', () => {
 
     describe('multiple branches', () => {
       it('should validate multiple branches', async () => {
-        const multiBranchContext = { ...context, config: mockConfigWithDevelop as unknown as ComplianceConfig };
+        const multiBranchContext = {
+          ...context,
+          config: mockConfigWithDevelop as unknown as ComplianceConfig,
+        };
 
         (mockClient.getBranchProtection as jest.Mock)
           .mockResolvedValueOnce(mockMainProtection) // main branch
@@ -576,7 +585,10 @@ describe('BranchProtectionCheck', () => {
             },
           },
         };
-        const multiBranchContext = { ...context, config: multiBranchConfig as unknown as ComplianceConfig };
+        const multiBranchContext = {
+          ...context,
+          config: multiBranchConfig as unknown as ComplianceConfig,
+        };
 
         (mockClient.getBranchProtection as jest.Mock)
           .mockResolvedValueOnce(mockMainProtection) // main branch (compliant)
@@ -703,7 +715,10 @@ describe('BranchProtectionCheck', () => {
     });
 
     it('should handle multiple actions', async () => {
-      const multiBranchContext = { ...context, config: mockConfigWithDevelop as unknown as ComplianceConfig };
+      const multiBranchContext = {
+        ...context,
+        config: mockConfigWithDevelop as unknown as ComplianceConfig,
+      };
 
       (mockClient.getBranchProtection as jest.Mock)
         .mockResolvedValueOnce(null) // main needs enabling
