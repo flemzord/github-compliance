@@ -9,6 +9,7 @@ import { run } from './main-integrated';
 import { JsonReporter, MarkdownReporter } from './reporting';
 import { ComplianceRunner } from './runner';
 import type { RunnerReport } from './runner/types';
+import type { MockValidationResult } from './test/test-types';
 
 // Mock all dependencies
 jest.mock('node:fs', () => ({
@@ -156,41 +157,41 @@ describe('main-integrated', () => {
     mockedFs.existsSync.mockReturnValue(true);
 
     // Setup GitHub context mock
-    mockedGithub.context = {
+    Object.assign(mockedGithub.context, {
       payload: {
         organization: { login: 'test-org' },
         repository: { full_name: 'test-org/test-repo' },
       },
-    } as CheckContext;
+    });
 
     // Setup validator mock - when called with file path, returns object with config and warnings
     mockedValidateFromString.mockResolvedValue({
       config: mockConfig,
       warnings: [],
-    } as { config: ComplianceConfig; warnings: string[] });
+    } as MockValidationResult);
 
     // Setup client mock
     mockClient = {
       setOwner: jest.fn(),
-    } as GitHubClient;
+    } as unknown as jest.Mocked<GitHubClient>;
     mockedGitHubClient.mockImplementation(() => mockClient);
 
     // Setup reporter mocks
     mockJsonReporterInstance = {
       generateReport: jest.fn().mockReturnValue('{"test": "json"}'),
-    } as JsonReporter;
+      generateSummary: jest.fn().mockReturnValue('{"summary": "json"}'),
+    } as unknown as jest.Mocked<JsonReporter>;
     mockMarkdownReporterInstance = {
       generateReport: jest.fn().mockReturnValue('# Test Report'),
       generateSummary: jest.fn().mockReturnValue('## Summary'),
-    } as MarkdownReporter;
+    } as unknown as jest.Mocked<MarkdownReporter>;
     mockedJsonReporter.mockImplementation(() => mockJsonReporterInstance);
     mockedMarkdownReporter.mockImplementation(() => mockMarkdownReporterInstance);
 
     // Setup runner mock
     mockRunner = {
       run: jest.fn().mockResolvedValue(mockRunnerReport),
-      // biome-ignore lint/suspicious/noExplicitAny: Mock ComplianceRunner for testing
-    } as any;
+    } as unknown as jest.Mocked<ComplianceRunner>;
     mockedComplianceRunner.mockImplementation(() => mockRunner);
   });
 
@@ -315,12 +316,11 @@ describe('main-integrated', () => {
     });
 
     it('should set owner from repository context when no organization', async () => {
-      mockedGithub.context = {
+      Object.assign(mockedGithub.context, {
         payload: {
           repository: { full_name: 'owner/repo' },
         },
-        // biome-ignore lint/suspicious/noExplicitAny: Mock CheckContext for testing
-      } as any;
+      });
 
       await run();
 
@@ -343,8 +343,7 @@ describe('main-integrated', () => {
       mockedValidateFromString.mockResolvedValue({
         config: mockConfig,
         warnings: ['Warning 1', 'Warning 2'],
-        // biome-ignore lint/suspicious/noExplicitAny: Mock validation result for testing
-      } as any);
+      } as MockValidationResult);
 
       await run();
 
@@ -367,8 +366,7 @@ describe('main-integrated', () => {
       mockedValidateFromString.mockResolvedValue({
         config: mockConfig,
         warnings: [],
-        // biome-ignore lint/suspicious/noExplicitAny: Mock validation result for testing
-      } as any);
+      } as MockValidationResult);
 
       await run();
 
@@ -592,10 +590,9 @@ describe('main-integrated', () => {
     });
 
     it('should not set owner when no context is available', async () => {
-      mockedGithub.context = {
+      Object.assign(mockedGithub.context, {
         payload: {},
-        // biome-ignore lint/suspicious/noExplicitAny: Mock GitHub context for testing
-      } as any;
+      });
 
       await run();
 

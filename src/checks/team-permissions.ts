@@ -152,7 +152,7 @@ export class TeamPermissionsCheck extends BaseCheck {
       const details = checkResult.details as CheckDetails;
       const actions_needed = details?.actions_needed;
 
-      if (!actions_needed || !Array.isArray(actions_needed)) {
+      if (!actions_needed || !Array.isArray(actions_needed) || actions_needed.length === 0) {
         return this.createCompliantResult('No actions needed to apply');
       }
 

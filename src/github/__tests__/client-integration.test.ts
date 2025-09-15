@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import type { TestErrorWithStatus, TestOctokit } from '../../test/test-types';
 import { GitHubClient } from '../client';
 
 // Mock @actions/core
@@ -6,11 +7,19 @@ jest.mock('@actions/core');
 const mockCore = core as jest.Mocked<typeof core>;
 
 // Helper to create a mock GitHubClient with custom octokit
-// biome-ignore lint/suspicious/noExplicitAny: Mock object for testing
-const createMockClient = (octokitMock: any) => {
+const createMockClient = (octokitMock: {
+  rest: Record<string, unknown>;
+  paginate?: { iterator: jest.Mock };
+}) => {
   const client = new GitHubClient({ token: 'test-token' });
-  // biome-ignore lint/suspicious/noExplicitAny: Testing internal property
-  (client as any).octokit = octokitMock;
+  const completeOctokit: TestOctokit = {
+    constructor: { name: 'Octokit' },
+    rest: octokitMock.rest,
+    paginate: octokitMock.paginate || {
+      iterator: jest.fn(),
+    },
+  };
+  (client as unknown as { octokit: TestOctokit }).octokit = completeOctokit;
   return client;
 };
 
@@ -36,8 +45,8 @@ describe('GitHubClient Integration Tests', () => {
 
       // Test throttle configuration by accessing the internal Octokit instance
       // This will help cover the throttle callback code paths
-      // biome-ignore lint/suspicious/noExplicitAny: Testing internal Octokit configuration
-      const throttleOptions = (client as any).octokit.constructor.name;
+      const throttleOptions = (client as unknown as { octokit: TestOctokit }).octokit.constructor
+        .name;
       expect(throttleOptions).toBeDefined();
     });
 
@@ -472,8 +481,7 @@ describe('GitHubClient Integration Tests', () => {
         token: 'test-token',
         throttle: {
           enabled: true,
-          // biome-ignore lint/suspicious/noExplicitAny: Testing undefined value in throttle config
-          retries: undefined as any,
+          retries: undefined as unknown as number,
           retryDelay: 1000,
         },
       });
@@ -541,14 +549,16 @@ describe('GitHubClient Integration Tests', () => {
           },
         },
         paginate: {
-          iterator: jest.fn().mockReturnValue([
-            {
-              data: [
-                { id: 1, name: 'repo1', archived: true },
-                { id: 2, name: 'repo2', archived: false },
-              ],
-            },
-          ]),
+          iterator: jest.fn().mockReturnValue(
+            (async function* () {
+              yield {
+                data: [
+                  { id: 1, name: 'repo1', archived: true },
+                  { id: 2, name: 'repo2', archived: false },
+                ],
+              };
+            })()
+          ),
         },
       };
 
@@ -569,14 +579,16 @@ describe('GitHubClient Integration Tests', () => {
           },
         },
         paginate: {
-          iterator: jest.fn().mockReturnValue([
-            {
-              data: [
-                { id: 1, name: 'repo1', archived: true },
-                { id: 2, name: 'repo2', archived: false },
-              ],
-            },
-          ]),
+          iterator: jest.fn().mockReturnValue(
+            (async function* () {
+              yield {
+                data: [
+                  { id: 1, name: 'repo1', archived: true },
+                  { id: 2, name: 'repo2', archived: false },
+                ],
+              };
+            })()
+          ),
         },
       };
 
@@ -596,9 +608,12 @@ describe('GitHubClient Integration Tests', () => {
           },
         },
         paginate: {
-          iterator: jest.fn().mockImplementation(() => {
-            throw 'String error message';
-          }),
+          iterator: jest.fn().mockReturnValue(
+            // biome-ignore lint/correctness/useYield: Mock generator that throws immediately
+            (async function* () {
+              throw 'String error message';
+            })()
+          ),
         },
       };
 
@@ -617,9 +632,12 @@ describe('GitHubClient Integration Tests', () => {
           },
         },
         paginate: {
-          iterator: jest.fn().mockImplementation(() => {
-            throw new Error('API error');
-          }),
+          iterator: jest.fn().mockReturnValue(
+            // biome-ignore lint/correctness/useYield: Mock generator that throws immediately
+            (async function* () {
+              throw new Error('API error');
+            })()
+          ),
         },
       };
 
@@ -672,8 +690,7 @@ describe('GitHubClient Integration Tests', () => {
           repos: {
             getBranchProtection: jest.fn().mockImplementation(() => {
               const error = new Error('Not Found');
-              // biome-ignore lint/suspicious/noExplicitAny: Adding status property to Error
-              (error as any).status = 404;
+              (error as TestErrorWithStatus).status = 404;
               throw error;
             }),
           },
@@ -730,9 +747,12 @@ describe('GitHubClient Integration Tests', () => {
           },
         },
         paginate: {
-          iterator: jest.fn().mockImplementation(() => {
-            throw 'Access denied';
-          }),
+          iterator: jest.fn().mockReturnValue(
+            // biome-ignore lint/correctness/useYield: Mock generator that throws immediately
+            (async function* () {
+              throw 'Access denied';
+            })()
+          ),
         },
       };
 
@@ -751,9 +771,12 @@ describe('GitHubClient Integration Tests', () => {
           },
         },
         paginate: {
-          iterator: jest.fn().mockImplementation(() => {
-            throw 'Access denied';
-          }),
+          iterator: jest.fn().mockReturnValue(
+            // biome-ignore lint/correctness/useYield: Mock generator that throws immediately
+            (async function* () {
+              throw 'Access denied';
+            })()
+          ),
         },
       };
 
@@ -882,8 +905,11 @@ describe('GitHubClient Integration Tests', () => {
       const client = new GitHubClient({ token: 'test-token' });
 
       // Override the entire method to force the outer catch to execute
-      // biome-ignore lint/suspicious/noExplicitAny: Testing method override for error handling
-      (client as any).getSecuritySettings = async (owner: string, repo: string) => {
+      (
+        client as GitHubClient & {
+          getSecuritySettings: (owner: string, repo: string) => Promise<Record<string, unknown>>;
+        }
+      ).getSecuritySettings = async (owner: string, repo: string) => {
         const settings = {};
         try {
           // Force an error early in the try block before the inner try-catches

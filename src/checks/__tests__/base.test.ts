@@ -1,5 +1,6 @@
 import type { ComplianceConfig } from '../../config/types';
 import type { GitHubClient, Repository } from '../../github/types';
+import type { TestableBaseCheck } from '../../test/test-types';
 import { BaseCheck, type CheckContext, type CheckResult } from '../base';
 
 // Concrete implementation for testing BaseCheck abstract class
@@ -163,8 +164,9 @@ describe('BaseCheck', () => {
   describe('helper methods', () => {
     describe('createCompliantResult', () => {
       it('should create compliant result without details', () => {
-        // biome-ignore lint/suspicious/noExplicitAny: Testing protected method
-        const result = (testCheck as any).createCompliantResult('Test message');
+        const result = (testCheck as unknown as TestableBaseCheck).createCompliantResult(
+          'Test message'
+        );
 
         expect(result.compliant).toBe(true);
         expect(result.message).toBe('Test message');
@@ -175,8 +177,10 @@ describe('BaseCheck', () => {
 
       it('should create compliant result with details', () => {
         const details = { key: 'value' };
-        // biome-ignore lint/suspicious/noExplicitAny: Testing protected method
-        const result = (testCheck as any).createCompliantResult('Test message', details);
+        const result = (testCheck as unknown as TestableBaseCheck).createCompliantResult(
+          'Test message',
+          details
+        );
 
         expect(result.compliant).toBe(true);
         expect(result.message).toBe('Test message');
@@ -186,8 +190,9 @@ describe('BaseCheck', () => {
 
     describe('createNonCompliantResult', () => {
       it('should create non-compliant result without details', () => {
-        // biome-ignore lint/suspicious/noExplicitAny: Testing protected method
-        const result = (testCheck as any).createNonCompliantResult('Test message');
+        const result = (testCheck as unknown as TestableBaseCheck).createNonCompliantResult(
+          'Test message'
+        );
 
         expect(result.compliant).toBe(false);
         expect(result.message).toBe('Test message');
@@ -198,8 +203,10 @@ describe('BaseCheck', () => {
 
       it('should create non-compliant result with details', () => {
         const details = { key: 'value' };
-        // biome-ignore lint/suspicious/noExplicitAny: Testing protected method
-        const result = (testCheck as any).createNonCompliantResult('Test message', details);
+        const result = (testCheck as unknown as TestableBaseCheck).createNonCompliantResult(
+          'Test message',
+          details
+        );
 
         expect(result.compliant).toBe(false);
         expect(result.message).toBe('Test message');
@@ -209,8 +216,9 @@ describe('BaseCheck', () => {
 
     describe('createFixedResult', () => {
       it('should create fixed result without details', () => {
-        // biome-ignore lint/suspicious/noExplicitAny: Testing protected method
-        const result = (testCheck as any).createFixedResult('Test message');
+        const result = (testCheck as unknown as TestableBaseCheck).createFixedResult(
+          'Test message'
+        );
 
         expect(result.compliant).toBe(true);
         expect(result.message).toBe('Test message');
@@ -221,8 +229,10 @@ describe('BaseCheck', () => {
 
       it('should create fixed result with details', () => {
         const details = { key: 'value' };
-        // biome-ignore lint/suspicious/noExplicitAny: Testing protected method
-        const result = (testCheck as any).createFixedResult('Test message', details);
+        const result = (testCheck as unknown as TestableBaseCheck).createFixedResult(
+          'Test message',
+          details
+        );
 
         expect(result.compliant).toBe(true);
         expect(result.message).toBe('Test message');
@@ -233,7 +243,10 @@ describe('BaseCheck', () => {
 
     describe('createErrorResult', () => {
       it('should create error result', () => {
-        const result = testCheck.createErrorResult('Test message', 'Error details');
+        const result = (testCheck as unknown as TestableBaseCheck).createErrorResult(
+          'Test message',
+          'Error details'
+        );
 
         expect(result.compliant).toBe(false);
         expect(result.message).toBe('Test message');
@@ -244,55 +257,90 @@ describe('BaseCheck', () => {
     });
 
     describe('getRepoInfo', () => {
-      it('should extract owner and repo from full_name', () => {
-        const result = testCheck.getRepoInfo(mockRepository);
+      it('should return repository info object', () => {
+        const result = (testCheck as unknown as TestableBaseCheck).getRepoInfo(mockRepository);
 
-        expect(result.owner).toBe('owner');
-        expect(result.repo).toBe('test-repo');
+        expect(result).toEqual({ owner: 'owner', repo: 'test-repo' });
       });
 
       it('should handle full_name with multiple slashes', () => {
         const repo = { ...mockRepository, full_name: 'org/suborg/repo-name' };
-        const result = testCheck.getRepoInfo(repo);
+        const result = (testCheck as unknown as TestableBaseCheck).getRepoInfo(repo);
 
-        expect(result.owner).toBe('org');
-        expect(result.repo).toBe('suborg'); // Only takes the second part due to destructuring
+        expect(result).toEqual({ owner: 'org', repo: 'suborg' });
       });
     });
 
     describe('matchesPattern', () => {
       it('should match exact strings', () => {
-        expect(testCheck.matchesPattern('test-repo', ['test-repo'])).toBe(true);
-        expect(testCheck.matchesPattern('test-repo', ['other-repo'])).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('test-repo', ['test-repo'])
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('test-repo', ['other-repo'])
+        ).toBe(false);
       });
 
       it('should match wildcard patterns', () => {
-        expect(testCheck.matchesPattern('test-repo', ['test-*'])).toBe(true);
-        expect(testCheck.matchesPattern('my-test-repo', ['*-test-*'])).toBe(true);
-        expect(testCheck.matchesPattern('repo-test', ['*-test'])).toBe(true);
-        expect(testCheck.matchesPattern('test-repo', ['prod-*'])).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('test-repo', ['test-*'])
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('my-test-repo', ['*-test-*'])
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('repo-test', ['*-test'])
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('test-repo', ['prod-*'])
+        ).toBe(false);
       });
 
       it('should match single character patterns', () => {
-        expect(testCheck.matchesPattern('test1', ['test?'])).toBe(true);
-        expect(testCheck.matchesPattern('testA', ['test?'])).toBe(true);
-        expect(testCheck.matchesPattern('test12', ['test?'])).toBe(false);
+        expect((testCheck as unknown as TestableBaseCheck).matchesPattern('test1', ['test?'])).toBe(
+          true
+        );
+        expect((testCheck as unknown as TestableBaseCheck).matchesPattern('testA', ['test?'])).toBe(
+          true
+        );
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('test12', ['test?'])
+        ).toBe(false);
       });
 
       it('should be case insensitive', () => {
-        expect(testCheck.matchesPattern('Test-Repo', ['test-*'])).toBe(true);
-        expect(testCheck.matchesPattern('TEST-REPO', ['test-*'])).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('Test-Repo', ['test-*'])
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('TEST-REPO', ['test-*'])
+        ).toBe(true);
       });
 
       it('should match multiple patterns', () => {
-        expect(testCheck.matchesPattern('test-repo', ['prod-*', 'test-*', 'dev-*'])).toBe(true);
-        expect(testCheck.matchesPattern('staging-repo', ['prod-*', 'test-*', 'dev-*'])).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('test-repo', [
+            'prod-*',
+            'test-*',
+            'dev-*',
+          ])
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesPattern('staging-repo', [
+            'prod-*',
+            'test-*',
+            'dev-*',
+          ])
+        ).toBe(false);
       });
     });
 
     describe('getRepoConfig', () => {
       it('should return default config when no rules match', () => {
-        const result = testCheck.getRepoConfig(context, 'merge_methods');
+        const result = (testCheck as unknown as TestableBaseCheck).getRepoConfig(
+          context,
+          'merge_methods'
+        );
 
         expect(result).toEqual(mockConfig.defaults.merge_methods);
       });
@@ -301,7 +349,10 @@ describe('BaseCheck', () => {
         const privateRepo = { ...mockRepository, name: 'my-private', private: true };
         const privateContext = { ...context, repository: privateRepo };
 
-        const result = testCheck.getRepoConfig(privateContext, 'merge_methods');
+        const result = (testCheck as unknown as TestableBaseCheck).getRepoConfig(
+          privateContext,
+          'merge_methods'
+        );
 
         expect(result).toEqual({
           allow_merge_commit: false, // overridden by rule
@@ -338,7 +389,10 @@ describe('BaseCheck', () => {
         };
 
         const multiRuleContext = { ...context, config: configWithMultipleRules };
-        const result = testCheck.getRepoConfig(multiRuleContext, 'merge_methods');
+        const result = (testCheck as unknown as TestableBaseCheck).getRepoConfig(
+          multiRuleContext,
+          'merge_methods'
+        );
 
         expect(result).toEqual({
           allow_merge_commit: true, // from default, not overridden in second rule
@@ -348,8 +402,10 @@ describe('BaseCheck', () => {
       });
 
       it('should return undefined for non-existent config keys', () => {
-        // biome-ignore lint/suspicious/noExplicitAny: Testing invalid config key
-        const result = testCheck.getRepoConfig(context, 'non_existent' as any);
+        const result = (testCheck as unknown as TestableBaseCheck).getRepoConfig(
+          context,
+          'non_existent'
+        );
 
         expect(result).toBeUndefined();
       });
@@ -361,22 +417,43 @@ describe('BaseCheck', () => {
           repositories: ['test-*', 'dev-*'],
         };
 
-        expect(testCheck.matchesRepositoryRule(mockRepository, rule)).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(mockRepository, rule)
+        ).toBe(true);
 
         const nonMatchingRepo = { ...mockRepository, name: 'prod-repo' };
-        expect(testCheck.matchesRepositoryRule(nonMatchingRepo, rule)).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(nonMatchingRepo, rule)
+        ).toBe(false);
       });
 
       it('should match private repository requirement', () => {
         const privateRule = { only_private: true };
         const publicRule = { only_private: false };
 
-        expect(testCheck.matchesRepositoryRule(mockRepository, privateRule)).toBe(false);
-        expect(testCheck.matchesRepositoryRule(mockRepository, publicRule)).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(
+            mockRepository,
+            privateRule
+          )
+        ).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(
+            mockRepository,
+            publicRule
+          )
+        ).toBe(true);
 
         const privateRepo = { ...mockRepository, private: true };
-        expect(testCheck.matchesRepositoryRule(privateRepo, privateRule)).toBe(true);
-        expect(testCheck.matchesRepositoryRule(privateRepo, publicRule)).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(
+            privateRepo,
+            privateRule
+          )
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(privateRepo, publicRule)
+        ).toBe(false);
       });
 
       it('should match both repository patterns and privacy', () => {
@@ -389,15 +466,35 @@ describe('BaseCheck', () => {
         const privateRepo = { ...mockRepository, name: 'my-private', private: true };
         const wrongNamePrivateRepo = { ...mockRepository, name: 'my-public', private: true };
 
-        expect(testCheck.matchesRepositoryRule(publicRepo, combinedRule)).toBe(false);
-        expect(testCheck.matchesRepositoryRule(privateRepo, combinedRule)).toBe(true);
-        expect(testCheck.matchesRepositoryRule(wrongNamePrivateRepo, combinedRule)).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(
+            publicRepo,
+            combinedRule
+          )
+        ).toBe(false);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(
+            privateRepo,
+            combinedRule
+          )
+        ).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(
+            wrongNamePrivateRepo,
+            combinedRule
+          )
+        ).toBe(false);
       });
 
       it('should return true when no criteria specified', () => {
         const emptyRule = {};
 
-        expect(testCheck.matchesRepositoryRule(mockRepository, emptyRule)).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(
+            mockRepository,
+            emptyRule
+          )
+        ).toBe(true);
       });
 
       it('should handle undefined only_private', () => {
@@ -405,23 +502,29 @@ describe('BaseCheck', () => {
           repositories: ['test-*'],
         };
 
-        expect(testCheck.matchesRepositoryRule(mockRepository, rule)).toBe(true);
+        expect(
+          (testCheck as unknown as TestableBaseCheck).matchesRepositoryRule(mockRepository, rule)
+        ).toBe(true);
       });
     });
   });
 
   describe('edge cases', () => {
     it('should handle empty patterns array', () => {
-      expect(testCheck.matchesPattern('test-repo', [])).toBe(false);
+      expect((testCheck as unknown as TestableBaseCheck).matchesPattern('test-repo', [])).toBe(
+        false
+      );
     });
 
     it('should handle config without rules', () => {
       const configWithoutRules = { ...mockConfig };
-      // biome-ignore lint/suspicious/noExplicitAny: Testing edge case with deleted property
-      delete (configWithoutRules as any).rules;
+      delete (configWithoutRules as ComplianceConfig & { rules?: unknown }).rules;
       const contextWithoutRules = { ...context, config: configWithoutRules };
 
-      const result = testCheck.getRepoConfig(contextWithoutRules, 'merge_methods');
+      const result = (testCheck as unknown as TestableBaseCheck).getRepoConfig(
+        contextWithoutRules,
+        'merge_methods'
+      );
 
       expect(result).toEqual(mockConfig.defaults.merge_methods);
     });
@@ -430,7 +533,10 @@ describe('BaseCheck', () => {
       const configWithEmptyRules = { ...mockConfig, rules: [] };
       const contextWithEmptyRules = { ...context, config: configWithEmptyRules };
 
-      const result = testCheck.getRepoConfig(contextWithEmptyRules, 'merge_methods');
+      const result = (testCheck as unknown as TestableBaseCheck).getRepoConfig(
+        contextWithEmptyRules,
+        'merge_methods'
+      );
 
       expect(result).toEqual(mockConfig.defaults.merge_methods);
     });
@@ -447,7 +553,10 @@ describe('BaseCheck', () => {
       };
 
       const undefinedApplyContext = { ...context, config: configWithUndefinedApply };
-      const result = testCheck.getRepoConfig(undefinedApplyContext, 'merge_methods');
+      const result = (testCheck as unknown as TestableBaseCheck).getRepoConfig(
+        undefinedApplyContext,
+        'merge_methods'
+      );
 
       expect(result).toEqual(mockConfig.defaults.merge_methods);
     });

@@ -1,6 +1,6 @@
 import * as core from '@actions/core';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
-import type { AppliedAction, CheckAction, CheckDetails, SpecificRepoConfig } from './types';
+import type { AppliedAction, CheckAction, CheckDetails } from './types';
 
 export class ArchivedReposCheck extends BaseCheck {
   readonly name = 'archived-repos';
@@ -116,31 +116,25 @@ export class ArchivedReposCheck extends BaseCheck {
         }
       }
 
-      // Check for specific repositories to archive/unarchive
-      if (
-        config.specific_repos &&
-        typeof config.specific_repos === 'object' &&
-        !Array.isArray(config.specific_repos)
-      ) {
-        const specificConfig = (config.specific_repos as Record<string, SpecificRepoConfig>)[
-          repository.name
-        ];
-
-        if (specificConfig !== undefined) {
-          if (specificConfig.archived !== repository.archived) {
-            const action = specificConfig.archived ? 'archive' : 'unarchive';
-            issues.push(
-              `Repository should be ${specificConfig.archived ? 'archived' : 'unarchived'} ` +
-                `but is ${repository.archived ? 'archived' : 'active'}`
-            );
-            if (!details.actions_needed || !Array.isArray(details.actions_needed)) {
-              details.actions_needed = [];
-            }
-            (details.actions_needed as CheckAction[]).push({
-              action: `${action}_repository`,
-              reason: 'specific_configuration',
-            });
+      // Check for specific repositories to archive
+      if (config.specific_repos && Array.isArray(config.specific_repos)) {
+        const shouldBeArchived = config.specific_repos.includes(repository.name);
+        if (shouldBeArchived && !repository.archived) {
+          issues.push(`Repository should be archived but is active`);
+          if (!details.actions_needed || !Array.isArray(details.actions_needed)) {
+            details.actions_needed = [];
           }
+          (details.actions_needed as CheckAction[]).push({
+            action: 'archive_repository',
+            reason: 'specific_configuration',
+          });
+        } else if (
+          !shouldBeArchived &&
+          repository.archived &&
+          config.specific_repos.includes(repository.name)
+        ) {
+          // This case only happens if the repo is in specific_repos but is already archived
+          // We don't unarchive in this case as specific_repos is for repos to be archived
         }
       }
 
@@ -240,7 +234,7 @@ export class ArchivedReposCheck extends BaseCheck {
       const details = checkResult.details as CheckDetails;
       const actions_needed = details?.actions_needed;
 
-      if (!actions_needed || !Array.isArray(actions_needed)) {
+      if (!actions_needed || !Array.isArray(actions_needed) || actions_needed.length === 0) {
         return this.createCompliantResult('No actions needed to apply');
       }
 
