@@ -1,5 +1,5 @@
 version: 1
-organization: "FormanceHQ"  # Optional if the action runs in single-repo mode
+organization: "ExampleHQ"  # Optional if the action runs in single-repo mode
 
 defaults:
   merge_methods:

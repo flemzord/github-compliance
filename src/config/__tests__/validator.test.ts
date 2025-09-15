@@ -8,7 +8,7 @@ import {
 
 const validConfig = `
 version: 1
-organization: "FormanceHQ"
+organization: "ExampleHQ"
 
 defaults:
   merge_methods:
@@ -81,7 +81,7 @@ describe('Config validation', () => {
       try {
         const config = await validateFromFile(tempPath);
         expect(config.version).toBe(1);
-        expect(config.organization).toBe('FormanceHQ');
+        expect(config.organization).toBe('ExampleHQ');
       } finally {
         if (fs.existsSync(tempPath)) {
           fs.unlinkSync(tempPath);
@@ -104,7 +104,7 @@ describe('Config validation', () => {
       const config = await validateFromString(validConfig);
 
       expect(config.version).toBe(1);
-      expect(config.organization).toBe('FormanceHQ');
+      expect(config.organization).toBe('ExampleHQ');
       expect(config.defaults.merge_methods?.allow_squash_merge).toBe(true);
       expect(config.defaults.branch_protection?.patterns).toEqual(['main', 'release/v*']);
       expect(config.rules).toHaveLength(2);

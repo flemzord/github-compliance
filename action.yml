@@ -1,6 +1,6 @@
 name: 'GitHub Compliance Action'
 description: 'Verify and fix repository compliance based on YAML configuration'
-author: 'FormanceHQ'
+author: 'Flemzord'
 branding:
   icon: 'shield'
   color: 'blue'
