@@ -36,7 +36,7 @@ export async function validateFromString(
   let yamlContent: string;
   let actualSourcePath: string | undefined;
 
-  // Check if first argument is a file path (used by main-integrated.ts)
+  // Check if first argument is a file path (used by main.ts)
   if (!sourcePath && fs.existsSync(yamlContentOrPath)) {
     yamlContent = fs.readFileSync(yamlContentOrPath, 'utf8');
     actualSourcePath = yamlContentOrPath;
@@ -59,7 +59,7 @@ export async function validateFromString(
   try {
     const config = ComplianceConfigSchema.parse(parsedYaml);
 
-    // If called with file path (main-integrated.ts), return object with warnings
+    // If called with file path (main.ts), return object with warnings
     if (!sourcePath && fs.existsSync(yamlContentOrPath)) {
       const warnings = validateDefaults(config);
       return { config, warnings };

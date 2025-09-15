@@ -85,7 +85,7 @@ npm run lint:types
 - **Coverage Requirements**: 80% minimum across all metrics (statements, branches, functions, lines)
 - **Mock Strategy**: Comprehensive mocks in `src/__mocks__/` for external dependencies
 - **Test Structure**: `__tests__/` directories alongside source files
-- **Integration Testing**: `src/main-integrated.test.ts` for full workflow validation
+- **Integration Testing**: `src/main.test.ts` for full workflow validation
 
 ## Key Implementation Patterns
 

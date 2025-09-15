@@ -5,7 +5,7 @@ import * as github from '@actions/github';
 import type { ComplianceConfig } from './config/types';
 import { validateFromString } from './config/validator';
 import { GitHubClient } from './github/client';
-import { run } from './main-integrated';
+import { run } from './main';
 import { JsonReporter, MarkdownReporter } from './reporting';
 import { ComplianceRunner } from './runner';
 import type { RunnerReport } from './runner/types';
@@ -95,7 +95,7 @@ const mockRunnerReport: RunnerReport = {
   timestamp: '2024-01-01T00:00:00Z',
 };
 
-describe('main-integrated', () => {
+describe('main', () => {
   let mockRunner: jest.Mocked<ComplianceRunner>;
   let mockClient: jest.Mocked<GitHubClient>;
   let mockJsonReporterInstance: jest.Mocked<JsonReporter>;
