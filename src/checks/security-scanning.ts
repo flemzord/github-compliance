@@ -1,11 +1,11 @@
 import * as core from '@actions/core';
+import type { Security } from '../config/types';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type {
   AppliedAction,
   CheckDetails,
   RepositoryWithSecurity,
   SecurityClient,
-  SecurityConfig,
   VulnerabilityAlert,
 } from './types';
 
@@ -22,7 +22,7 @@ export class SecurityScanningCheck extends BaseCheck {
     try {
       const { repository } = context;
       const { owner, repo } = this.getRepoInfo(repository);
-      const config = this.getRepoConfig(context, 'security') as unknown as SecurityConfig;
+      const config = this.getRepoConfig(context, 'security') as Security;
 
       if (!config) {
         return this.createCompliantResult('No security scanning configuration specified');
@@ -70,10 +70,11 @@ export class SecurityScanningCheck extends BaseCheck {
       if (config.secret_scanning !== undefined) {
         const currentSetting =
           repoData.security_and_analysis?.secret_scanning?.status === 'enabled';
+        const expectedSetting = config.secret_scanning === 'enabled';
 
-        if (config.secret_scanning !== currentSetting) {
+        if (expectedSetting !== currentSetting) {
           issues.push(
-            `Secret scanning should be ${config.secret_scanning ? 'enabled' : 'disabled'} ` +
+            `Secret scanning should be ${config.secret_scanning} ` +
               `but is ${currentSetting ? 'enabled' : 'disabled'}`
           );
           if (details.actions_needed) {
@@ -89,10 +90,11 @@ export class SecurityScanningCheck extends BaseCheck {
       if (config.secret_scanning_push_protection !== undefined) {
         const currentSetting =
           repoData.security_and_analysis?.secret_scanning_push_protection?.status === 'enabled';
+        const expectedSetting = config.secret_scanning_push_protection === 'enabled';
 
-        if (config.secret_scanning_push_protection !== currentSetting) {
+        if (expectedSetting !== currentSetting) {
           issues.push(
-            `Secret scanning push protection should be ${config.secret_scanning_push_protection ? 'enabled' : 'disabled'} ` +
+            `Secret scanning push protection should be ${config.secret_scanning_push_protection} ` +
               `but is ${currentSetting ? 'enabled' : 'disabled'}`
           );
           if (details.actions_needed) {
@@ -105,12 +107,12 @@ export class SecurityScanningCheck extends BaseCheck {
       }
 
       // Check code scanning (GitHub Advanced Security)
-      if (config.code_scanning !== undefined) {
+      if (config.code_scanning_recommended !== undefined) {
         try {
           // Note: This would require additional API calls to check CodeQL or other code scanning tools
           // For now, we'll just check if the feature is available for the repository
           if (repository.private && !repoData.security_and_analysis?.advanced_security?.status) {
-            if (config.code_scanning) {
+            if (config.code_scanning_recommended) {
               issues.push(
                 'Code scanning requires GitHub Advanced Security to be enabled for private repositories'
               );
@@ -194,7 +196,7 @@ export class SecurityScanningCheck extends BaseCheck {
     try {
       const { repository } = context;
       const { owner, repo } = this.getRepoInfo(repository);
-      const config = this.getRepoConfig(context, 'security') as unknown as SecurityConfig;
+      const config = this.getRepoConfig(context, 'security') as Security;
 
       if (!config) {
         return this.createCompliantResult('No security scanning configuration to apply');
@@ -237,27 +239,27 @@ export class SecurityScanningCheck extends BaseCheck {
               await (context.client as unknown as SecurityClient).updateSecretScanning(
                 owner,
                 repo,
-                action.enabled as boolean
+                action.enabled === 'enabled'
               );
               appliedActions.push({
                 action: 'update_secret_scanning',
                 details: { enabled: action.enabled },
               });
               core.info(
-                `✅ ${action.enabled ? 'Enabled' : 'Disabled'} secret scanning for ${repository.full_name}`
+                `✅ ${action.enabled === 'enabled' ? 'Enabled' : 'Disabled'} secret scanning for ${repository.full_name}`
               );
               break;
 
             case 'update_secret_scanning_push_protection':
               await (
                 context.client as unknown as SecurityClient
-              ).updateSecretScanningPushProtection(owner, repo, action.enabled as boolean);
+              ).updateSecretScanningPushProtection(owner, repo, action.enabled === 'enabled');
               appliedActions.push({
                 action: 'update_secret_scanning_push_protection',
                 details: { enabled: action.enabled },
               });
               core.info(
-                `✅ ${action.enabled ? 'Enabled' : 'Disabled'} secret scanning push protection for ${repository.full_name}`
+                `✅ ${action.enabled === 'enabled' ? 'Enabled' : 'Disabled'} secret scanning push protection for ${repository.full_name}`
               );
               break;
 

@@ -1,5 +1,10 @@
 import * as fs from 'node:fs';
-import { ConfigValidationError, validateDefaults, validateFromFile, validateFromString } from '../validator';
+import {
+  ConfigValidationError,
+  validateDefaults,
+  validateFromFile,
+  validateFromString,
+} from '../validator';
 
 const validConfig = `
 version: 1
@@ -88,7 +93,9 @@ describe('Config validation', () => {
       const nonExistentPath = '/tmp/non-existent-config.yml';
 
       await expect(validateFromFile(nonExistentPath)).rejects.toThrow(ConfigValidationError);
-      await expect(validateFromFile(nonExistentPath)).rejects.toThrow('Configuration file not found');
+      await expect(validateFromFile(nonExistentPath)).rejects.toThrow(
+        'Configuration file not found'
+      );
     });
   });
 
@@ -246,7 +253,9 @@ defaults:
       });
 
       try {
-        await expect(validateFromString('version: 1\ndefaults: {}')).rejects.toThrow('Custom non-ZodError');
+        await expect(validateFromString('version: 1\ndefaults: {}')).rejects.toThrow(
+          'Custom non-ZodError'
+        );
       } finally {
         // Restore original
         require('../schema').ComplianceConfigSchema.parse = originalParse;
@@ -261,7 +270,7 @@ defaults:
       });
 
       try {
-        const error = await validateFromString('some content').catch(e => e);
+        const error = await validateFromString('some content').catch((e) => e);
         expect(error).toBeInstanceOf(ConfigValidationError);
         expect(error.issues).toContain('String error instead of Error object');
       } finally {
@@ -280,14 +289,14 @@ defaults:
           {
             code: 'custom',
             path: [], // Empty path to test the 'root' case
-            message: 'Root level validation error'
-          }
+            message: 'Root level validation error',
+          },
         ]);
         throw zodError;
       });
 
       try {
-        const error = await validateFromString('version: 1\ndefaults: {}').catch(e => e);
+        const error = await validateFromString('version: 1\ndefaults: {}').catch((e) => e);
         expect(error).toBeInstanceOf(ConfigValidationError);
         expect(error.issues).toContain('root: Root level validation error');
       } finally {
