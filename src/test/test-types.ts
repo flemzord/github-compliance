@@ -34,21 +34,6 @@ export interface TestContext {
   repository: Repository;
 }
 
-// More specific validation result for mocking
-export type MockValidationResult = {
-  config: {
-    version: 1;
-    defaults: {
-      merge_methods?: {
-        allow_merge_commit: boolean;
-        allow_squash_merge: boolean;
-        allow_rebase_merge: boolean;
-      };
-    };
-  };
-  warnings: string[];
-};
-
 // Mock Octokit interface
 export interface TestOctokit {
   constructor: {

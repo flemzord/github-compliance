@@ -1,13 +1,19 @@
-import * as core from '@actions/core';
 import type { ComplianceConfig } from '../../config/types';
 import type { Collaborator, GitHubClient, Repository, TeamPermission } from '../../github/types';
+import { type Logger, resetLogger, setLogger } from '../../logging';
 import type { TestableTeamPermissionsCheck } from '../../test/test-types';
 import type { CheckContext } from '../base';
 import { TeamPermissionsCheck } from '../team-permissions';
 
-// Mock @actions/core
-jest.mock('@actions/core');
-const mockCore = core as jest.Mocked<typeof core>;
+const mockLogger: jest.Mocked<Logger> = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  startGroup: jest.fn(),
+  endGroup: jest.fn(),
+};
 
 // Mock GitHubClient
 const mockClient: Partial<GitHubClient> = {
@@ -127,18 +133,11 @@ describe('TeamPermissionsCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.warning.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.error.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.debug.mockImplementation(() => {
-      /* mock */
-    });
+    setLogger(mockLogger);
+  });
+
+  afterEach(() => {
+    resetLogger();
   });
 
   describe('shouldRun', () => {
@@ -264,7 +263,7 @@ describe('TeamPermissionsCheck', () => {
 
         expect(result.compliant).toBe(false);
         expect(result.message).toContain('has unauthorized access and should be removed');
-        expect(mockCore.warning).toHaveBeenCalledWith(
+        expect(mockLogger.warning).toHaveBeenCalledWith(
           "Team 'extra-team' has access to owner/test-repo but is not in configuration - will be removed"
         );
         expect(result.details?.actions_needed).toContainEqual({
@@ -289,13 +288,13 @@ describe('TeamPermissionsCheck', () => {
         await check.check(contextWithoutTeams);
 
         // Should warn about all existing teams since none are configured
-        expect(mockCore.warning).toHaveBeenCalledWith(
+        expect(mockLogger.warning).toHaveBeenCalledWith(
           expect.stringContaining("Team 'developers' has access")
         );
-        expect(mockCore.warning).toHaveBeenCalledWith(
+        expect(mockLogger.warning).toHaveBeenCalledWith(
           expect.stringContaining("Team 'maintainers' has access")
         );
-        expect(mockCore.warning).toHaveBeenCalledWith(
+        expect(mockLogger.warning).toHaveBeenCalledWith(
           expect.stringContaining("Team 'readers' has access")
         );
       });
@@ -527,7 +526,7 @@ describe('TeamPermissionsCheck', () => {
         expect(result.compliant).toBe(false);
         expect(result.error).toBe('Teams API not available');
         expect(result.message).toBe('Failed to check repository permissions');
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to check permissions')
         );
       });
@@ -629,7 +628,7 @@ describe('TeamPermissionsCheck', () => {
       expect(result.compliant).toBe(true);
       expect(result.fixed).toBe(true);
       expect(result.message).toBe('Applied 1 permission changes');
-      expect(mockCore.info).toHaveBeenCalledWith('✅ Added team new-team for owner/test-repo');
+      expect(mockLogger.info).toHaveBeenCalledWith('✅ Added team new-team for owner/test-repo');
     });
 
     it('should update team permission', async () => {
@@ -657,7 +656,7 @@ describe('TeamPermissionsCheck', () => {
         'push'
       );
       expect(result.fixed).toBe(true);
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Updated team existing-team for owner/test-repo'
       );
     });
@@ -685,7 +684,7 @@ describe('TeamPermissionsCheck', () => {
         'individual-user'
       );
       expect(result.fixed).toBe(true);
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Removed collaborator individual-user from owner/test-repo'
       );
     });
@@ -775,7 +774,7 @@ describe('TeamPermissionsCheck', () => {
 
         const result = await check.fix(context);
 
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to apply add_team for owner/test-repo')
         );
         expect(result.compliant).toBe(false);
@@ -795,7 +794,7 @@ describe('TeamPermissionsCheck', () => {
 
         const result = await check.fix(context);
 
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to apply remove_collaborator for owner/test-repo')
         );
         expect(result.compliant).toBe(false);
@@ -841,7 +840,7 @@ describe('TeamPermissionsCheck', () => {
         expect(result.compliant).toBe(false);
         expect(result.error).toBe('Unexpected error during check');
         expect(result.message).toBe('Failed to update repository permissions');
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to fix permissions')
         );
       });

@@ -1,5 +1,5 @@
-import * as core from '@actions/core';
 import type { Security } from '../config/types';
+import * as logger from '../logging';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type {
   AppliedAction,
@@ -125,7 +125,7 @@ export class SecurityScanningCheck extends BaseCheck {
             }
           }
         } catch (error) {
-          core.warning(
+          logger.warning(
             `Could not check code scanning status: ${error instanceof Error ? error.message : String(error)}`
           );
         }
@@ -157,12 +157,12 @@ export class SecurityScanningCheck extends BaseCheck {
             vulnAlerts.open &&
             vulnAlerts.open > 0
           ) {
-            core.warning(
+            logger.warning(
               `Repository ${repository.full_name} has ${vulnAlerts.open} open vulnerability alerts`
             );
           }
         } catch (error) {
-          core.debug(
+          logger.debug(
             `Could not fetch vulnerability alerts: ${error instanceof Error ? error.message : String(error)}`
           );
         }
@@ -181,7 +181,7 @@ export class SecurityScanningCheck extends BaseCheck {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to check security scanning for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to check security scanning settings', errorMessage);
@@ -230,7 +230,7 @@ export class SecurityScanningCheck extends BaseCheck {
                 action: 'update_dependabot_alerts',
                 details: { enabled: action.enabled },
               });
-              core.info(
+              logger.info(
                 `✅ ${action.enabled ? 'Enabled' : 'Disabled'} Dependabot alerts for ${repository.full_name}`
               );
               break;
@@ -245,7 +245,7 @@ export class SecurityScanningCheck extends BaseCheck {
                 action: 'update_secret_scanning',
                 details: { enabled: action.enabled },
               });
-              core.info(
+              logger.info(
                 `✅ ${action.enabled === 'enabled' ? 'Enabled' : 'Disabled'} secret scanning for ${repository.full_name}`
               );
               break;
@@ -258,7 +258,7 @@ export class SecurityScanningCheck extends BaseCheck {
                 action: 'update_secret_scanning_push_protection',
                 details: { enabled: action.enabled },
               });
-              core.info(
+              logger.info(
                 `✅ ${action.enabled === 'enabled' ? 'Enabled' : 'Disabled'} secret scanning push protection for ${repository.full_name}`
               );
               break;
@@ -266,20 +266,20 @@ export class SecurityScanningCheck extends BaseCheck {
             case 'enable_advanced_security':
               // Note: This typically requires organization-level permissions
               // and may need to be handled differently depending on the GitHub plan
-              core.warning(
+              logger.warning(
                 `Advanced Security needs to be enabled for ${repository.full_name} to use code scanning on private repositories. ` +
                   'This may require organization owner permissions.'
               );
               break;
 
             default:
-              core.warning(`Unknown security scanning action: ${action.action}`);
+              logger.warning(`Unknown security scanning action: ${action.action}`);
               break;
           }
         } catch (actionError) {
           const errorMessage =
             actionError instanceof Error ? actionError.message : String(actionError);
-          core.error(
+          logger.error(
             `Failed to apply ${action.action} for ${repository.full_name}: ${errorMessage}`
           );
         }
@@ -298,7 +298,7 @@ export class SecurityScanningCheck extends BaseCheck {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to fix security scanning for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to update security scanning settings', errorMessage);

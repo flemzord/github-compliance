@@ -5,13 +5,12 @@
     "url": "https://github.com/flemzord/github-compliance.git"
   },
   "version": "1.0.0",
-  "description": "🛡️ Enforce repository compliance standards across your GitHub organization",
+  "description": "\ud83d\udee1\ufe0f CLI to enforce repository compliance standards across your GitHub organization",
   "main": "dist/index.js",
   "scripts": {
-    "build": "ncc build src/main.ts -o dist --source-map --license licenses.txt",
-    "build:watch": "npm run build -- --watch",
-    "build:cli": "ncc build src/cli.ts -o dist-cli --minify --source-map --license licenses.txt",
-    "dev": "tsx src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc --watch -p tsconfig.json",
+    "dev": "tsx watch src/cli.ts",
     "cli": "tsx src/cli.ts",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -23,11 +22,11 @@
     "lint:knip": "knip",
     "lint:knip:fix": "knip --fix --allow-remove-files",
     "lint:types": "tsc --noEmit",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "prepare": "npm run build"
   },
   "keywords": [
     "github",
-    "action",
     "compliance",
     "security",
     "governance"
@@ -38,8 +37,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.1",
     "@octokit/plugin-throttling": "^11.0.1",
     "@octokit/rest": "^22.0.0",
     "js-yaml": "^4.1.0",
@@ -50,11 +47,17 @@
     "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.4.0",
-    "@vercel/ncc": "^0.38.3",
     "jest": "^30.1.3",
     "knip": "^5.63.1",
     "ts-jest": "^29.4.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
-  }
+  },
+  "bin": {
+    "compliance-cli": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "types": "dist/index.d.ts"
 }

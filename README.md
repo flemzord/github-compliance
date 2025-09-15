@@ -1,58 +1,92 @@
-# GitHub Compliance Action
+# GitHub Compliance CLI
 
-A powerful GitHub Action that automatically enforces repository compliance policies across your GitHub organization. Monitor, report, and optionally fix non-compliant repository settings with customizable rules and comprehensive reporting.
+Command-line tool to audit and enforce repository compliance across your GitHub organization. Run targeted or organization-wide checks, generate detailed reports, and optionally remediate issues in a single workflow.
 
 ## Features
 
-- 🔍 **Automated Compliance Scanning** - Continuously monitor repositories for compliance violations
-- 🔧 **Auto-Fix Capabilities** - Automatically remediate non-compliant settings (with dry-run mode)
-- 📊 **Comprehensive Reporting** - Generate detailed JSON and Markdown reports
-- 🎯 **Flexible Rule Configuration** - Apply different rules to different repositories using glob patterns
-- 🚀 **High Performance** - Built-in API throttling and efficient batch processing
-- ✅ **Extensive Test Coverage** - 98%+ code coverage ensuring reliability
+- 🔍 **Automated Compliance Scanning** – Evaluate repositories against a shared YAML configuration
+- 🔧 **Auto-Fix Capabilities** – Apply fixes when run without `--dry-run`
+- 📊 **Comprehensive Reporting** – Output Markdown or JSON reports ready for auditing
+- 🎯 **Flexible Rules** – Target specific repositories or checks with simple flags
+- 🚀 **High Performance** – Built-in API throttling and concurrent execution
 
-## Quick Start
+## Installation
 
-```yaml
-name: Repository Compliance Check
-on:
-  schedule:
-    - cron: '0 0 * * *'  # Daily at midnight
-  workflow_dispatch:
+### Global (from npm)
 
-jobs:
-  compliance:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+```bash
+npm install -g @flemzord/github-compliance
+```
 
-      - name: Run Compliance Checks
-        uses: flemzord/github-compliance-action@v1
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: .github/compliance-config.yml
-          dry-run: true  # Set to false to enable auto-fix
+> ℹ️ The package is being prepared for release. Until it is published you can run the CLI locally as shown below.
+
+### From Source
+
+```bash
+npm install
+npm run build
+# optional: make the CLI globally available from this checkout
+npm link
+```
+
+Or run without building by using the TypeScript entry point:
+
+```bash
+npm run cli -- --config compliance.yml --token ghp_xxx --dry-run
+```
+
+## Usage
+
+```bash
+compliance-cli --config <path> --token <token> [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--config`, `-c` | Path to the compliance configuration YAML file (required) |
+| `--token`, `-t` | GitHub personal access token (required unless `GITHUB_TOKEN` is set) |
+| `--org` | GitHub organization name (falls back to `organization` value in config) |
+| `--dry-run`, `-d` | Report issues without applying changes |
+| `--repos` | Comma-separated list of repository names to check |
+| `--checks` | Comma-separated list of checks to run (`merge-methods`, `branch-protection`, `security-scanning`, `team-permissions`, `archived-repos`) |
+| `--include-archived` | Include archived repositories in the run |
+| `--format` | Report format (`markdown` or `json`, default `markdown`) |
+| `--output`, `-o` | Custom output file path |
+| `--verbose`, `-v` | Enable verbose logging |
+| `--quiet`, `-q` | Suppress informational logs |
+
+### Examples
+
+```bash
+# Dry-run across the entire organization
+compliance-cli --config .github/compliance.yml --token $GITHUB_TOKEN --dry-run
+
+# Audit only selected repositories
+compliance-cli -c compliance.yml -t ghp_xxx --repos "frontend,backend"
+
+# Run a subset of checks and output JSON
+compliance-cli -c compliance.yml -t ghp_xxx --checks "merge-methods,security-scanning" \
+  --format json --output compliance-report.json
+
+# Apply fixes (no dry-run) and include archived repositories
+compliance-cli -c compliance.yml -t ghp_xxx --include-archived
 ```
 
 ## Configuration
 
-📚 **[View Complete Configuration Reference](./docs/configuration-reference.md)** - Detailed documentation of all available options with examples.
+📚 **[Configuration Reference](./docs/configuration-reference.md)** – Full documentation covering every option.
 
-Create a `.github/compliance-config.yml` file in your repository:
+Create a configuration file (for example `compliance.yml`):
 
 ```yaml
-# Compliance configuration version
 version: 1
 
-# Default settings applied to all repositories
 defaults:
-  # Merge methods configuration
   merge_methods:
     allow_merge_commit: false
     allow_squash_merge: true
     allow_rebase_merge: false
 
-  # Branch protection rules
   branch_protection:
     patterns: ["main", "master", "release/*"]
     enforce_admins: true
@@ -70,14 +104,12 @@ defaults:
     allow_deletions: false
     required_conversation_resolution: true
 
-  # Security settings
   security:
     secret_scanning: "enabled"
     secret_scanning_push_protection: "enabled"
     dependabot_alerts: true
     code_scanning: true
 
-  # Team permissions
   permissions:
     remove_individual_collaborators: true
     teams:
@@ -86,14 +118,11 @@ defaults:
       - team: "engineering"
         permission: "write"
 
-  # Archived repository settings
   archived_repos:
     archive_inactive: true
     inactive_days: 365
 
-# Repository-specific rules (optional)
 rules:
-  # Private production repositories get stricter settings
   - match:
       repositories: ["*-prod", "*-production"]
       only_private: true
@@ -104,7 +133,6 @@ rules:
           required_approving_review_count: 3
         enforce_admins: true
 
-  # Documentation repositories have different merge methods
   - match:
       repositories: ["docs-*", "*-website"]
     apply:
@@ -116,92 +144,19 @@ rules:
             permission: "maintain"
 ```
 
-## Available Compliance Checks
-
-### Branch Protection
-Ensures critical branches have appropriate protection rules:
-- Required pull request reviews
-- Dismiss stale reviews
-- Require code owner reviews
-- Enforce restrictions for administrators
-- Require branches to be up to date
-
-### Security Scanning
-Validates security features are enabled:
-- Dependabot alerts and updates
-- Secret scanning
-- Secret scanning push protection
-- Code scanning (CodeQL)
-
-### Merge Methods
-Controls allowed merge strategies:
-- Merge commits
-- Squash merging
-- Rebase merging
-
-### Team Permissions
-Manages repository access:
-- Enforce team-based access (remove individual collaborators)
-- Validate team permissions levels
-- Ensure proper access control
-
-### Archived Repositories
-Special handling for archived repositories:
-- Validate admin team access
-- Report on archived repository compliance
-
-## Action Inputs
-
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `github-token` | GitHub token with repo and admin:org permissions | Yes | - |
-| `config-file` | Path to the compliance configuration file | No | `.github/compliance-config.yml` |
-| `dry-run` | Run in dry-run mode (report only, no fixes) | No | `true` |
-| `output-dir` | Directory for compliance reports | No | `compliance-reports` |
-
-## Action Outputs
-
-| Output | Description |
-|--------|-------------|
-| `compliance-report` | Path to the JSON compliance report |
-| `markdown-report` | Path to the Markdown compliance report |
-| `total-repositories` | Total number of repositories checked |
-| `compliant-count` | Number of fully compliant repositories |
-| `non-compliant-count` | Number of non-compliant repositories |
-| `fixed-count` | Number of repositories with fixes applied |
-
 ## Reports
 
-The action generates two types of reports:
+Two output formats are available:
 
-### JSON Report
-Detailed machine-readable report with:
-- Complete compliance status for each repository
-- Specific violations and fixes applied
-- Error details and warnings
+- **Markdown** – Human-readable summary ideal for sharing with stakeholders
+- **JSON** – Structured data for dashboards or additional automation
 
-### Markdown Report
-Human-readable summary with:
-- Executive summary
-- Compliance statistics
-- Detailed findings by check type
-- Recommended actions
-
-## Permissions Required
-
-The GitHub token needs the following permissions:
-
-- `repo` - Full control of private repositories
-- `admin:org` - Read and write org and team membership
-- `read:org` - Read org and team membership (minimum for dry-run)
+By default the CLI writes `compliance-report.md` (or `.json` when `--format json` is used). Supply `--output` to override the file name.
 
 ## Development
 
-### Prerequisites
-- Node.js 20+
-- npm 10+
+All development commands work locally:
 
-### Setup
 ```bash
 # Install dependencies
 npm install
@@ -209,102 +164,14 @@ npm install
 # Run tests
 npm test
 
-# Run tests with coverage
-npm run test:coverage
-
-# Lint code
-npm run lint
-
-# Build for production
+# Build the CLI
 npm run build
+
+# Execute the CLI from source
+npm run cli -- --config compliance.yml --token ghp_xxx
 ```
 
-### Testing
-```bash
-# Run all tests
-npm test
-
-# Run specific test file
-npx jest src/checks/__tests__/branch-protection.test.ts
-
-# Run tests in watch mode
-npm run test:watch
-
-# Generate coverage report
-npm run test:coverage
-```
-
-### Code Quality
-- **Linting**: BiomeJS for style, Knip for dead code, TypeScript for type checking
-- **Testing**: Jest with 80% minimum coverage requirement
-- **Type Safety**: Strict TypeScript with Zod runtime validation
-
-## Architecture
-
-```
-src/
-├── main.ts                 # Action entry point
-├── config/                 # Configuration parsing and validation
-│   ├── schema.ts          # Zod schemas
-│   ├── types.ts           # TypeScript interfaces
-│   └── validator.ts       # YAML validation
-├── checks/                 # Compliance check implementations
-│   ├── base.ts            # Base check class
-│   ├── branch-protection.ts
-│   ├── security-scanning.ts
-│   ├── merge-methods.ts
-│   ├── team-permissions.ts
-│   └── archived-repos.ts
-├── runner/                 # Check orchestration
-│   ├── runner.ts          # Main runner logic
-│   └── check-registry.ts  # Check registration
-├── github/                 # GitHub API client
-│   └── client.ts          # Octokit wrapper with throttling
-└── reporting/             # Report generation
-    ├── json-reporter.ts
-    └── markdown-reporter.ts
-```
-
-## Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for your changes
-4. Ensure all tests pass (`npm test`)
-5. Ensure linting passes (`npm run lint`)
-6. Commit your changes
-7. Push to the branch
-8. Open a Pull Request
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/flemzord/github-compliance-action/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/flemzord/github-compliance-action/discussions)
-
-## Roadmap
-
-- [ ] Support for GitHub Enterprise Server
-- [ ] Custom check plugins
-- [ ] Webhook notifications
-- [ ] Compliance dashboard
-- [ ] Historical compliance tracking
-- [ ] SARIF output format
-- [ ] Integration with policy-as-code tools
-
-## Acknowledgments
-
-Built with:
-- [Octokit](https://github.com/octokit/octokit.js) - GitHub API client
-- [Zod](https://github.com/colinhacks/zod) - TypeScript-first schema validation
-- [BiomeJS](https://biomejs.dev/) - Fast formatter and linter
-- [Jest](https://jestjs.io/) - Testing framework
-- [@vercel/ncc](https://github.com/vercel/ncc) - Node.js compiler
+For more details see [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ---
 

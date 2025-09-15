@@ -1,10 +1,16 @@
-import * as core from '@actions/core';
+import { type Logger, resetLogger, setLogger } from '../../logging';
 import type { TestErrorWithStatus, TestOctokit } from '../../test/test-types';
 import { GitHubClient } from '../client';
 
-// Mock @actions/core
-jest.mock('@actions/core');
-const mockCore = core as jest.Mocked<typeof core>;
+const mockLogger: jest.Mocked<Logger> = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  startGroup: jest.fn(),
+  endGroup: jest.fn(),
+};
 
 // Helper to create a mock GitHubClient with custom octokit
 const createMockClient = (octokitMock: {
@@ -28,6 +34,11 @@ describe('GitHubClient Integration Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    setLogger(mockLogger);
+  });
+
+  afterEach(() => {
+    resetLogger();
   });
 
   describe('Constructor with throttling', () => {
@@ -374,7 +385,7 @@ describe('GitHubClient Integration Tests', () => {
     });
 
     it('should test getSecuritySettings with warning output', async () => {
-      const originalWarning = mockCore.warning;
+      const originalWarning = mockLogger.warning;
 
       try {
         await client.getSecuritySettings('test-org', 'test-repo');
@@ -384,7 +395,7 @@ describe('GitHubClient Integration Tests', () => {
       }
 
       // Reset warning mock
-      mockCore.warning = originalWarning;
+      mockLogger.warning = originalWarning;
     });
   });
 
@@ -532,7 +543,7 @@ describe('GitHubClient Integration Tests', () => {
       // This should trigger the rate limit callback and core.warning call
       // We can't directly call the callback, but we can verify the setup
       expect(client).toBeInstanceOf(GitHubClient);
-      expect(mockCore.warning).toBeDefined();
+      expect(mockLogger.warning).toBeDefined();
     });
   });
 
@@ -916,14 +927,16 @@ describe('GitHubClient Integration Tests', () => {
           throw new Error('Simulated API failure that reaches outer catch');
         } catch (error) {
           // This should hit line 369
-          mockCore.warning(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
+          mockLogger.warning(
+            `Could not fetch all security settings for ${owner}/${repo}: ${error}`
+          );
         }
         return settings;
       };
 
       await client.getSecuritySettings('owner', 'repo');
 
-      expect(mockCore.warning).toHaveBeenCalledWith(
+      expect(mockLogger.warning).toHaveBeenCalledWith(
         expect.stringContaining('Could not fetch all security settings for owner/repo')
       );
     });
@@ -940,7 +953,7 @@ describe('GitHubClient Integration Tests', () => {
 
       // Replicate the exact callback from lines 31-36 in client.ts
       const onRateLimit = (retryAfter: number, opts: Record<string, unknown>) => {
-        mockCore.warning(
+        mockLogger.warning(
           `Rate limit exceeded, retrying after ${retryAfter} seconds. ${opts.method} ${opts.url}`
         );
         return (
@@ -956,7 +969,7 @@ describe('GitHubClient Integration Tests', () => {
 
       const result = onRateLimit(30, opts);
 
-      expect(mockCore.warning).toHaveBeenCalledWith(
+      expect(mockLogger.warning).toHaveBeenCalledWith(
         'Rate limit exceeded, retrying after 30 seconds. GET /repos/test/issues'
       );
       expect(result).toBe(true); // Should retry since retryCount < 3
@@ -968,7 +981,7 @@ describe('GitHubClient Integration Tests', () => {
 
       // Replicate the exact callback from lines 38-44 in client.ts
       const onSecondaryRateLimit = (retryAfter: number, opts: Record<string, unknown>) => {
-        mockCore.warning(
+        mockLogger.warning(
           `Secondary rate limit exceeded, retrying after ${retryAfter} seconds. ${opts.method} ${opts.url}`
         );
         return (
@@ -984,7 +997,7 @@ describe('GitHubClient Integration Tests', () => {
 
       const result = onSecondaryRateLimit(60, opts);
 
-      expect(mockCore.warning).toHaveBeenCalledWith(
+      expect(mockLogger.warning).toHaveBeenCalledWith(
         'Secondary rate limit exceeded, retrying after 60 seconds. POST /repos/test/pulls'
       );
       expect(result).toBe(false); // Should not retry since retryCount >= 2
@@ -996,7 +1009,7 @@ describe('GitHubClient Integration Tests', () => {
 
       // Replicate the exact callback with default retries handling
       const onRateLimit = (retryAfter: number, opts: Record<string, unknown>) => {
-        mockCore.warning(
+        mockLogger.warning(
           `Rate limit exceeded, retrying after ${retryAfter} seconds. ${opts.method} ${opts.url}`
         );
         return (
@@ -1012,7 +1025,7 @@ describe('GitHubClient Integration Tests', () => {
 
       const result = onRateLimit(30, opts);
 
-      expect(mockCore.warning).toHaveBeenCalledWith(
+      expect(mockLogger.warning).toHaveBeenCalledWith(
         'Rate limit exceeded, retrying after 30 seconds. GET /repos/test/issues'
       );
       expect(result).toBe(true); // Should retry since retryCount < default 3

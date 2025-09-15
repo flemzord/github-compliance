@@ -1,4 +1,4 @@
-import * as core from '@actions/core';
+import * as logger from '../logging';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { CheckDetails, RepositoryUpdateSettings, RepositoryWithMergeMethods } from './types';
 
@@ -81,7 +81,7 @@ export class MergeMethodsCheck extends BaseCheck {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to check merge methods for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to check merge methods configuration', errorMessage);
@@ -126,7 +126,7 @@ export class MergeMethodsCheck extends BaseCheck {
       // Update repository settings
       await context.client.updateRepository(owner, repo, updateData);
 
-      core.info(`✅ Updated merge methods for ${repository.full_name}`);
+      logger.info(`✅ Updated merge methods for ${repository.full_name}`);
 
       return this.createFixedResult('Merge methods configuration has been updated', {
         applied: updateData,
@@ -134,7 +134,7 @@ export class MergeMethodsCheck extends BaseCheck {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to fix merge methods for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to update merge methods configuration', errorMessage);

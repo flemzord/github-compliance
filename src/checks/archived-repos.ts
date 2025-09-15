@@ -1,4 +1,4 @@
-import * as core from '@actions/core';
+import * as logger from '../logging';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckAction, CheckDetails } from './types';
 
@@ -73,7 +73,7 @@ export class ArchivedReposCheck extends BaseCheck {
       if (config.unarchive_active !== undefined && config.unarchive_active && repository.archived) {
         // Note: We can't easily detect recent activity on an archived repo
         // This would typically be handled manually or through specific criteria
-        core.info(
+        logger.info(
           `Repository ${repository.full_name} is archived. Consider if it should be unarchived based on your criteria.`
         );
       }
@@ -180,11 +180,11 @@ export class ArchivedReposCheck extends BaseCheck {
           if (recommendations.length > 0) {
             details.recommendations = recommendations;
             for (const recommendation of recommendations) {
-              core.info(`💡 ${recommendation}`);
+              logger.info(`💡 ${recommendation}`);
             }
           }
         } catch (error) {
-          core.debug(
+          logger.debug(
             `Could not fetch repository metrics: ${error instanceof Error ? error.message : String(error)}`
           );
         }
@@ -203,7 +203,7 @@ export class ArchivedReposCheck extends BaseCheck {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to check archived repos for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to check repository archival status', errorMessage);
@@ -248,7 +248,7 @@ export class ArchivedReposCheck extends BaseCheck {
                 action: 'archive_repository',
                 details: { reason: action.reason, repository: repository.full_name },
               });
-              core.info(
+              logger.info(
                 `✅ Archived repository ${repository.full_name} (reason: ${action.reason})`
               );
               break;
@@ -259,30 +259,30 @@ export class ArchivedReposCheck extends BaseCheck {
                 action: 'unarchive_repository',
                 details: { reason: action.reason, repository: repository.full_name },
               });
-              core.info(
+              logger.info(
                 `✅ Unarchived repository ${repository.full_name} (reason: ${action.reason})`
               );
               break;
 
             default:
-              core.warning(`Unknown archived repos action: ${action.action}`);
+              logger.warning(`Unknown archived repos action: ${action.action}`);
               break;
           }
         } catch (actionError) {
           const errorMessage =
             actionError instanceof Error ? actionError.message : String(actionError);
-          core.error(
+          logger.error(
             `Failed to apply ${action.action} for ${repository.full_name}: ${errorMessage}`
           );
 
           // Some common error scenarios
           if (errorMessage.includes('archived')) {
-            core.error(
+            logger.error(
               'Cannot modify an archived repository. Manual intervention may be required.'
             );
           }
           if (errorMessage.includes('permission')) {
-            core.error('Insufficient permissions to archive/unarchive repository.');
+            logger.error('Insufficient permissions to archive/unarchive repository.');
           }
         }
       }
@@ -297,7 +297,7 @@ export class ArchivedReposCheck extends BaseCheck {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to fix archived repos for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to update repository archival status', errorMessage);

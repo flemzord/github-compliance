@@ -36,7 +36,7 @@ export async function validateFromString(
   let yamlContent: string;
   let actualSourcePath: string | undefined;
 
-  // Check if first argument is a file path (used by main.ts)
+  // Check if first argument is a file path (used by the CLI entry point)
   if (!sourcePath && fs.existsSync(yamlContentOrPath)) {
     yamlContent = fs.readFileSync(yamlContentOrPath, 'utf8');
     actualSourcePath = yamlContentOrPath;
@@ -59,13 +59,13 @@ export async function validateFromString(
   try {
     const config = ComplianceConfigSchema.parse(parsedYaml);
 
-    // If called with file path (main.ts), return object with warnings
+    // If called with a file path (CLI), return object with warnings
     if (!sourcePath && fs.existsSync(yamlContentOrPath)) {
       const warnings = validateDefaults(config);
       return { config, warnings };
     }
 
-    // Otherwise return just the config (main-simple.ts)
+    // Otherwise return just the config for direct string validation
     return config;
   } catch (error) {
     if (error instanceof ZodError) {

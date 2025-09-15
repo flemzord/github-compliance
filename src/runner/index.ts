@@ -1,8 +1,8 @@
-import * as core from '@actions/core';
 import type { CheckContext, ComplianceCheck } from '../checks/base';
 import type { ComplianceConfig } from '../config/types';
 import type { GitHubClient } from '../github/client';
 import type { Repository } from '../github/types';
+import * as logger from '../logging';
 import { getAvailableChecks, getCheck } from './check-registry';
 import type { CheckExecution, RepositoryReport, RunnerOptions, RunnerReport } from './types';
 
@@ -22,15 +22,15 @@ export class ComplianceRunner {
    */
   async run(): Promise<RunnerReport> {
     const startTime = Date.now();
-    core.info('🚀 Starting compliance checks...');
+    logger.info('🚀 Starting compliance checks...');
 
     // Get repositories to check
     const repositories = await this.getRepositoriesToCheck();
-    core.info(`Found ${repositories.length} repositories to check`);
+    logger.info(`Found ${repositories.length} repositories to check`);
 
     // Determine which checks to run
     const checksToRun = this.getChecksToRun();
-    core.info(`Will run ${checksToRun.length} checks: ${checksToRun.join(', ')}`);
+    logger.info(`Will run ${checksToRun.length} checks: ${checksToRun.join(', ')}`);
 
     // Process each repository
     const repositoryReports: RepositoryReport[] = [];
@@ -46,7 +46,7 @@ export class ComplianceRunner {
 
       // Progress update
       const processed = Math.min(i + concurrency, repositories.length);
-      core.info(`Progress: ${processed}/${repositories.length} repositories processed`);
+      logger.info(`Progress: ${processed}/${repositories.length} repositories processed`);
     }
 
     // Generate summary report
@@ -89,7 +89,7 @@ export class ComplianceRunner {
     const invalidChecks = this.options.checks.filter((check) => !availableChecks.includes(check));
 
     if (invalidChecks.length > 0) {
-      core.warning(`Invalid checks requested: ${invalidChecks.join(', ')}`);
+      logger.warning(`Invalid checks requested: ${invalidChecks.join(', ')}`);
     }
 
     return this.options.checks.filter((check) => availableChecks.includes(check));
@@ -102,8 +102,8 @@ export class ComplianceRunner {
     repository: Repository,
     checksToRun: string[]
   ): Promise<RepositoryReport> {
-    core.group(`📦 Checking ${repository.full_name}`, async () => {
-      core.info(
+    await logger.group(`📦 Checking ${repository.full_name}`, async () => {
+      logger.info(
         `Repository: ${repository.full_name} (${repository.private ? 'private' : 'public'}${repository.archived ? ', archived' : ''})`
       );
     });
@@ -145,16 +145,15 @@ export class ComplianceRunner {
 
     // Log repository summary
     if (report.compliant) {
-      core.info(
+      logger.info(
         `✅ ${repository.full_name} is compliant (${checksPassed} passed, ${checksFixed} fixed)`
       );
     } else {
-      core.warning(
+      logger.warning(
         `❌ ${repository.full_name} has issues (${checksFailed} failed, ${checksErrored} errors)`
       );
     }
 
-    core.endGroup();
     return report;
   }
 
@@ -182,31 +181,31 @@ export class ComplianceRunner {
 
       // Check if this check should run for this repository
       if (!check.shouldRun(context)) {
-        core.debug(`Skipping ${checkName} for ${repository.full_name} (shouldRun = false)`);
+        logger.debug(`Skipping ${checkName} for ${repository.full_name} (shouldRun = false)`);
         return null;
       }
 
       // Run the check
-      core.debug(`Running ${checkName} for ${repository.full_name}`);
+      logger.debug(`Running ${checkName} for ${repository.full_name}`);
       let result = await check.check(context);
 
       // If check failed and we're not in dry-run mode, try to fix
       if (!result.compliant && !this.options.dryRun && check.fix) {
-        core.info(`🔧 Attempting to fix ${checkName} for ${repository.full_name}`);
+        logger.info(`🔧 Attempting to fix ${checkName} for ${repository.full_name}`);
         result = await check.fix(context);
       }
 
       // Log result
       if (result.compliant) {
         if (result.fixed) {
-          core.info(`✅ Fixed: ${checkName} - ${result.message}`);
+          logger.info(`✅ Fixed: ${checkName} - ${result.message}`);
         } else {
-          core.debug(`✅ Pass: ${checkName} - ${result.message}`);
+          logger.debug(`✅ Pass: ${checkName} - ${result.message}`);
         }
       } else if (result.error) {
-        core.error(`❌ Error: ${checkName} - ${result.message}: ${result.error}`);
+        logger.error(`❌ Error: ${checkName} - ${result.message}: ${result.error}`);
       } else {
-        core.warning(`⚠️ Fail: ${checkName} - ${result.message}`);
+        logger.warning(`⚠️ Fail: ${checkName} - ${result.message}`);
       }
 
       return {
@@ -217,7 +216,7 @@ export class ComplianceRunner {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(`Failed to run ${checkName} for ${repository.full_name}: ${errorMessage}`);
+      logger.error(`Failed to run ${checkName} for ${repository.full_name}: ${errorMessage}`);
 
       return {
         checkName,
@@ -265,27 +264,27 @@ export class ComplianceRunner {
    * Log summary to console
    */
   private logSummary(report: RunnerReport): void {
-    core.info('');
-    core.info('='.repeat(60));
-    core.info('📊 COMPLIANCE CHECK SUMMARY');
-    core.info('='.repeat(60));
-    core.info(`Total Repositories: ${report.totalRepositories}`);
-    core.info(`✅ Compliant: ${report.compliantRepositories}`);
-    core.info(`❌ Non-Compliant: ${report.nonCompliantRepositories}`);
-    core.info(`🔧 Fixed: ${report.fixedRepositories}`);
-    core.info(`⚠️ Errors: ${report.errorRepositories}`);
-    core.info(`📈 Compliance Rate: ${report.compliancePercentage}%`);
-    core.info(`⏱️ Execution Time: ${(report.executionTime / 1000).toFixed(2)}s`);
-    core.info('='.repeat(60));
+    logger.info('');
+    logger.info('='.repeat(60));
+    logger.info('📊 COMPLIANCE CHECK SUMMARY');
+    logger.info('='.repeat(60));
+    logger.info(`Total Repositories: ${report.totalRepositories}`);
+    logger.info(`✅ Compliant: ${report.compliantRepositories}`);
+    logger.info(`❌ Non-Compliant: ${report.nonCompliantRepositories}`);
+    logger.info(`🔧 Fixed: ${report.fixedRepositories}`);
+    logger.info(`⚠️ Errors: ${report.errorRepositories}`);
+    logger.info(`📈 Compliance Rate: ${report.compliancePercentage}%`);
+    logger.info(`⏱️ Execution Time: ${(report.executionTime / 1000).toFixed(2)}s`);
+    logger.info('='.repeat(60));
 
     // List non-compliant repositories for visibility
     if (report.nonCompliantRepositories > 0) {
-      core.info('');
-      core.warning('Non-compliant repositories:');
+      logger.info('');
+      logger.warning('Non-compliant repositories:');
       report.repositories
         .filter((r) => !r.compliant)
         .forEach((r) => {
-          core.warning(
+          logger.warning(
             `  - ${r.repository.full_name} (${r.checksFailed} failed, ${r.checksErrored} errors)`
           );
         });

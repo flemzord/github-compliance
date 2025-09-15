@@ -1,7 +1,7 @@
-import * as core from '@actions/core';
 import { throttling } from '@octokit/plugin-throttling';
 import { Octokit } from '@octokit/rest';
 import type { OctokitRepository, RepositoryListOptions } from '../checks/types';
+import * as logger from '../logging';
 import type {
   BranchProtectionRule,
   Collaborator,
@@ -28,7 +28,7 @@ export class GitHubClient {
       // Type assertion for throttle config due to complex Octokit types
       (octokitOptions as Record<string, unknown>).throttle = {
         onRateLimit: (retryAfter: number, opts: Record<string, unknown>) => {
-          core.warning(
+          logger.warning(
             `Rate limit exceeded, retrying after ${retryAfter} seconds. ${opts.method} ${opts.url}`
           );
           return (
@@ -36,7 +36,7 @@ export class GitHubClient {
           );
         },
         onSecondaryRateLimit: (retryAfter: number, opts: Record<string, unknown>) => {
-          core.warning(
+          logger.warning(
             `Secondary rate limit exceeded, retrying after ${retryAfter} seconds. ${opts.method} ${opts.url}`
           );
           return (
@@ -385,7 +385,7 @@ export class GitHubClient {
         settings.dependabot_alerts = { enabled: false };
       }
     } catch (error) {
-      core.warning(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
+      logger.warning(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
     }
 
     return settings;

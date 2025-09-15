@@ -52,7 +52,7 @@ npm run lint:types
 ## Code Architecture
 
 ### High-Level System Flow
-1. **Entry Point** (`src/main.ts`) - GitHub Action entry, parses inputs, validates config
+1. **CLI Entry Point** (`src/cli.ts`) - Parses CLI arguments, validates config, orchestrates runs
 2. **Configuration System** (`src/config/`) - YAML validation using Zod schemas
 3. **Compliance Runner** (`src/runner/`) - Orchestrates repository discovery and check execution
 4. **Check System** (`src/checks/`) - Pluggable compliance checks with base class
@@ -109,7 +109,7 @@ rules:
 ### Error Handling Strategy
 - **Graceful Degradation**: Individual check failures don't halt entire run
 - **Detailed Reporting**: Error messages include repository context and suggested actions
-- **GitHub Actions Integration**: Uses `@actions/core` for structured logging
+- **Logging**: Centralized logging module provides structured output for CLI and tests
 
 ### Type Safety Approach
 - **Strict TypeScript**: `noEmit` type checking in lint pipeline
@@ -119,9 +119,9 @@ rules:
 ## Development Notes
 
 - **Linting Philosophy**: Three-tier approach (Style/Syntax via BiomeJS, Dead Code via Knip, Types via TypeScript)
-- **Mock Requirements**: External dependencies (Octokit, @actions/core) require comprehensive mocking
+- **Mock Requirements**: External dependencies (Octokit, logging layer) require comprehensive mocking
 - **Coverage Strategy**: Focus on business logic coverage, not just line coverage
-- **Build Process**: Uses `@vercel/ncc` to create single-file distributables for GitHub Actions
+- **Build Process**: TypeScript compiler builds the library and CLI into `dist/`
 - **Node Version**: Requires Node.js 20+ (specified in package.json engines)
 
 ## Testing Considerations
@@ -129,4 +129,4 @@ rules:
 - Use `biome-ignore lint/suspicious/noExplicitAny` comments when testing private methods with `(instance as any)`
 - Mock GitHub API responses should match actual API structure from Octokit
 - Configuration test scenarios should cover both valid and invalid YAML structures
-- Integration tests should verify the complete GitHub Action input/output flow
+- Integration tests should exercise the CLI end-to-end, including argument parsing and reporting

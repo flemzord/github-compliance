@@ -1,4 +1,4 @@
-import * as core from '@actions/core';
+import * as logger from '../logging';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckDetails } from './types';
 
@@ -35,7 +35,7 @@ export class BranchProtectionCheck extends BaseCheck {
       };
 
       if (!patterns || patterns.length === 0) {
-        core.warning('No branch patterns specified in branch protection configuration');
+        logger.warning('No branch patterns specified in branch protection configuration');
         return this.createCompliantResult('No branch patterns to protect');
       }
 
@@ -50,7 +50,7 @@ export class BranchProtectionCheck extends BaseCheck {
         try {
           await context.client.getBranch(owner, repo, branchName);
         } catch (_branchError) {
-          core.warning(
+          logger.warning(
             `Branch '${branchName}' does not exist in ${repository.full_name}, skipping protection check`
           );
           continue;
@@ -254,7 +254,7 @@ export class BranchProtectionCheck extends BaseCheck {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to check branch protection for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to check branch protection rules', errorMessage);
@@ -293,7 +293,7 @@ export class BranchProtectionCheck extends BaseCheck {
       for (const action of actions_needed) {
         try {
           // Debug logging
-          core.debug(`Processing action: ${JSON.stringify(action)}`);
+          logger.debug(`Processing action: ${JSON.stringify(action)}`);
 
           switch (action.action) {
             case 'enable_protection':
@@ -345,7 +345,7 @@ export class BranchProtectionCheck extends BaseCheck {
                   rules: rulesToApply,
                 },
               });
-              core.info(
+              logger.info(
                 `✅ ${action.action === 'enable_protection' ? 'Enabled' : 'Updated'} protection for ${branchName} in ${repository.full_name}`
               );
               break;
@@ -355,7 +355,7 @@ export class BranchProtectionCheck extends BaseCheck {
           const errorMessage =
             actionError instanceof Error ? actionError.message : String(actionError);
           const branchInfo = action.branch || action.field || 'unknown';
-          core.error(
+          logger.error(
             `Failed to apply ${action.action} for branch '${branchInfo}' in ${repository.full_name}: ${errorMessage}`
           );
         }
@@ -374,7 +374,7 @@ export class BranchProtectionCheck extends BaseCheck {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to fix branch protection for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to update branch protection rules', errorMessage);

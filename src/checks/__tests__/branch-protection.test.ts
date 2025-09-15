@@ -1,13 +1,19 @@
-import * as core from '@actions/core';
 import type { ComplianceConfig } from '../../config/types';
 import type { GitHubClient, Repository } from '../../github/types';
+import { type Logger, resetLogger, setLogger } from '../../logging';
 import type { TestableBranchProtectionCheck } from '../../test/test-types';
 import type { CheckContext } from '../base';
 import { BranchProtectionCheck } from '../branch-protection';
 
-// Mock @actions/core
-jest.mock('@actions/core');
-const mockCore = core as jest.Mocked<typeof core>;
+const mockLogger: jest.Mocked<Logger> = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  startGroup: jest.fn(),
+  endGroup: jest.fn(),
+};
 
 // Mock GitHubClient
 const mockClient: Partial<GitHubClient> = {
@@ -136,18 +142,11 @@ describe('BranchProtectionCheck', () => {
       dryRun: false,
       repository: mockRepository,
     };
-    mockCore.info.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.warning.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.error.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.debug.mockImplementation(() => {
-      /* mock */
-    });
+    setLogger(mockLogger);
+  });
+
+  afterEach(() => {
+    resetLogger();
   });
 
   describe('shouldRun', () => {
@@ -195,7 +194,7 @@ describe('BranchProtectionCheck', () => {
 
         expect(result.compliant).toBe(true);
         expect(result.message).toBe('Branch protection rules are configured correctly');
-        expect(mockCore.warning).toHaveBeenCalledWith(
+        expect(mockLogger.warning).toHaveBeenCalledWith(
           "Branch 'main' does not exist in owner/test-repo, skipping protection check"
         );
       });
@@ -640,7 +639,7 @@ describe('BranchProtectionCheck', () => {
         expect(result.compliant).toBe(false);
         expect(result.error).toBe('Branch not found');
         expect(result.message).toBe('Failed to check branch protection rules');
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to check branch protection')
         );
       });
@@ -712,7 +711,7 @@ describe('BranchProtectionCheck', () => {
       expect(result.compliant).toBe(true);
       expect(result.fixed).toBe(true);
       expect(result.message).toBe('Applied 1 branch protection changes');
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Enabled protection for main in owner/test-repo'
       );
     });
@@ -735,7 +734,7 @@ describe('BranchProtectionCheck', () => {
         })
       );
       expect(result.message).toBe('Applied 1 branch protection changes');
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Updated protection for main in owner/test-repo'
       );
     });
@@ -764,7 +763,7 @@ describe('BranchProtectionCheck', () => {
 
       const result = await check.fix(context);
 
-      expect(mockCore.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining("Failed to apply enable_protection for branch 'main'")
       );
       expect(result.compliant).toBe(false);
@@ -811,7 +810,7 @@ describe('BranchProtectionCheck', () => {
       expect(result.compliant).toBe(false);
       expect(result.error).toBe('Unexpected error during check');
       expect(result.message).toBe('Failed to update branch protection rules');
-      expect(mockCore.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to fix branch protection')
       );
     });

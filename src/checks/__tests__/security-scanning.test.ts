@@ -1,13 +1,19 @@
-import * as core from '@actions/core';
 import type { ComplianceConfig } from '../../config/types';
 import type { GitHubClient, Repository } from '../../github/types';
+import { type Logger, resetLogger, setLogger } from '../../logging';
 import type { CheckContext } from '../base';
 import { SecurityScanningCheck } from '../security-scanning';
 import type { SecurityClient, VulnerabilityAlert } from '../types';
 
-// Mock @actions/core
-jest.mock('@actions/core');
-const mockCore = core as jest.Mocked<typeof core>;
+const mockLogger: jest.Mocked<Logger> = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  startGroup: jest.fn(),
+  endGroup: jest.fn(),
+};
 
 // Mock GitHubClient with SecurityClient methods
 const mockClient: Partial<GitHubClient & SecurityClient> = {
@@ -86,18 +92,11 @@ describe('SecurityScanningCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.warning.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.error.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.debug.mockImplementation(() => {
-      /* mock */
-    });
+    setLogger(mockLogger);
+  });
+
+  afterEach(() => {
+    resetLogger();
   });
 
   describe('shouldRun', () => {
@@ -465,7 +464,7 @@ describe('SecurityScanningCheck', () => {
 
         await check.check(problematicContext);
 
-        expect(mockCore.warning).toHaveBeenCalledWith(
+        expect(mockLogger.warning).toHaveBeenCalledWith(
           expect.stringContaining('Could not check code scanning status')
         );
       });
@@ -488,7 +487,7 @@ describe('SecurityScanningCheck', () => {
       it('should warn about open vulnerability alerts', async () => {
         await check.check(context);
 
-        expect(mockCore.warning).toHaveBeenCalledWith(
+        expect(mockLogger.warning).toHaveBeenCalledWith(
           'Repository owner/test-repo has 2 open vulnerability alerts'
         );
       });
@@ -502,7 +501,7 @@ describe('SecurityScanningCheck', () => {
 
         await check.check(context);
 
-        expect(mockCore.warning).not.toHaveBeenCalledWith(
+        expect(mockLogger.warning).not.toHaveBeenCalledWith(
           expect.stringContaining('open vulnerability alerts')
         );
       });
@@ -514,7 +513,7 @@ describe('SecurityScanningCheck', () => {
 
         const result = await check.check(context);
 
-        expect(mockCore.debug).toHaveBeenCalledWith(
+        expect(mockLogger.debug).toHaveBeenCalledWith(
           'Could not fetch vulnerability alerts: Insufficient permissions to access vulnerability alerts'
         );
         expect(result.compliant).toBe(true); // Should still work without vulnerability alerts
@@ -579,7 +578,7 @@ describe('SecurityScanningCheck', () => {
         expect(result.compliant).toBe(false);
         expect(result.error).toBe('Repository not found');
         expect(result.message).toBe('Failed to check security scanning settings');
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to check security scanning')
         );
       });
@@ -676,7 +675,7 @@ describe('SecurityScanningCheck', () => {
       expect(result.compliant).toBe(true);
       expect(result.fixed).toBe(true);
       expect(result.message).toBe('Applied 1 security scanning changes');
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Enabled Dependabot alerts for owner/test-repo'
       );
     });
@@ -699,7 +698,9 @@ describe('SecurityScanningCheck', () => {
 
       expect(mockClient.updateSecretScanning).toHaveBeenCalledWith('owner', 'test-repo', true);
       expect(result.fixed).toBe(true);
-      expect(mockCore.info).toHaveBeenCalledWith('✅ Enabled secret scanning for owner/test-repo');
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        '✅ Enabled secret scanning for owner/test-repo'
+      );
     });
 
     it('should fix secret scanning push protection setting', async () => {
@@ -724,7 +725,7 @@ describe('SecurityScanningCheck', () => {
         true
       );
       expect(result.fixed).toBe(true);
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Enabled secret scanning push protection for owner/test-repo'
       );
     });
@@ -745,7 +746,7 @@ describe('SecurityScanningCheck', () => {
 
       const result = await check.fix(context);
 
-      expect(mockCore.warning).toHaveBeenCalledWith(
+      expect(mockLogger.warning).toHaveBeenCalledWith(
         expect.stringContaining('Advanced Security needs to be enabled')
       );
       expect(result.compliant).toBe(false); // This action requires manual intervention
@@ -788,7 +789,7 @@ describe('SecurityScanningCheck', () => {
 
       const result = await check.fix(context);
 
-      expect(mockCore.warning).toHaveBeenCalledWith(
+      expect(mockLogger.warning).toHaveBeenCalledWith(
         'Unknown security scanning action: unknown_action'
       );
       expect(result.compliant).toBe(false);
@@ -811,7 +812,7 @@ describe('SecurityScanningCheck', () => {
 
         const result = await check.fix(context);
 
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to apply update_dependabot_alerts')
         );
         expect(result.compliant).toBe(false);
@@ -867,7 +868,7 @@ describe('SecurityScanningCheck', () => {
         expect(result.compliant).toBe(false);
         expect(result.error).toBe('Unexpected error during check');
         expect(result.message).toBe('Failed to update security scanning settings');
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to fix security scanning')
         );
       });

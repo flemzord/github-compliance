@@ -6,6 +6,7 @@ import { parseArgs } from 'node:util';
 import type { ComplianceConfig } from './config/types';
 import { validateFromString } from './config/validator';
 import { GitHubClient } from './github/client';
+import { ConsoleLogger, setLogger } from './logging';
 import { JsonReporter, MarkdownReporter } from './reporting';
 import { ComplianceRunner } from './runner';
 import type { RunnerOptions } from './runner/types';
@@ -59,64 +60,6 @@ interface CLIOptions {
   output?: string | undefined;
   verbose: boolean;
   quiet: boolean;
-}
-
-type LogLevel = 'quiet' | 'normal' | 'verbose';
-
-class Logger {
-  private level: LogLevel;
-
-  constructor(verbose = false, quiet = false) {
-    if (quiet) {
-      this.level = 'quiet';
-    } else if (verbose) {
-      this.level = 'verbose';
-    } else {
-      this.level = 'normal';
-    }
-  }
-
-  info(message: string): void {
-    if (this.level !== 'quiet') {
-      console.log(`ℹ️  ${message}`);
-    }
-  }
-
-  success(message: string): void {
-    if (this.level !== 'quiet') {
-      console.log(`✅ ${message}`);
-    }
-  }
-
-  warning(message: string): void {
-    if (this.level !== 'quiet') {
-      console.warn(`⚠️  ${message}`);
-    }
-  }
-
-  error(message: string): void {
-    // Always show errors
-    console.error(`❌ ${message}`);
-  }
-
-  debug(message: string): void {
-    if (this.level === 'verbose') {
-      console.log(`🔍 ${message}`);
-    }
-  }
-
-  group(title: string): void {
-    if (this.level === 'verbose') {
-      console.log(`\n📦 ${title}`);
-      console.log('─'.repeat(50));
-    }
-  }
-
-  endGroup(): void {
-    if (this.level === 'verbose') {
-      console.log('─'.repeat(50));
-    }
-  }
 }
 
 function parseCliArgs(): CLIOptions {
@@ -187,7 +130,8 @@ function parseCliArgs(): CLIOptions {
 
 async function main(): Promise<void> {
   const options = parseCliArgs();
-  const logger = new Logger(options.verbose, options.quiet);
+  const logger = new ConsoleLogger({ verbose: options.verbose, quiet: options.quiet });
+  setLogger(logger);
 
   try {
     logger.info('🚀 GitHub Compliance CLI starting...');
@@ -244,51 +188,6 @@ async function main(): Promise<void> {
     logger.info('🏃 Running compliance checks...');
     if (options.dryRun) {
       logger.info('🔍 Running in DRY-RUN mode - no changes will be made');
-    }
-
-    // Mock core functions for CLI usage
-    // In quiet mode, suppress most info logs except critical ones
-    const mockCore = {
-      info: (msg: string) => {
-        // Filter out verbose progress messages in quiet mode
-        if (options.quiet) {
-          // Only show critical info messages in quiet mode
-          if (msg.includes('✅') || msg.includes('❌') || msg.includes('Fixed:')) {
-            logger.info(msg);
-          }
-        } else {
-          logger.info(msg);
-        }
-      },
-      warning: (msg: string) => logger.warning(msg),
-      error: (msg: string) => logger.error(msg),
-      debug: (msg: string) => logger.debug(msg),
-      group: async (title: string, fn: () => Promise<void>) => {
-        logger.group(title);
-        await fn();
-        logger.endGroup();
-      },
-      endGroup: () => logger.endGroup(),
-      setOutput: () => {
-        // No-op for CLI
-      },
-      setFailed: (msg: string) => {
-        logger.error(msg);
-        process.exit(1);
-      },
-      summary: {
-        addRaw: () => ({
-          write: async () => {
-            // No-op for CLI
-          },
-        }),
-      },
-    };
-
-    // Replace @actions/core with mock
-    const coreModule = require.cache[require.resolve('@actions/core')];
-    if (coreModule) {
-      coreModule.exports = mockCore;
     }
 
     const runner = new ComplianceRunner(

@@ -1,12 +1,18 @@
-import * as core from '@actions/core';
 import type { ComplianceConfig } from '../../config/types';
 import type { GitHubClient, Repository } from '../../github/types';
+import { type Logger, resetLogger, setLogger } from '../../logging';
 import { ArchivedReposCheck } from '../archived-repos';
 import type { CheckContext } from '../base';
 
-// Mock @actions/core
-jest.mock('@actions/core');
-const mockCore = core as jest.Mocked<typeof core>;
+const mockLogger: jest.Mocked<Logger> = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  startGroup: jest.fn(),
+  endGroup: jest.fn(),
+};
 
 // Mock GitHubClient
 const mockClient: Partial<GitHubClient> = {
@@ -64,18 +70,11 @@ describe('ArchivedReposCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.warning.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.error.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.debug.mockImplementation(() => {
-      /* mock */
-    });
+    setLogger(mockLogger);
+  });
+
+  afterEach(() => {
+    resetLogger();
   });
 
   describe('shouldRun', () => {
@@ -223,7 +222,7 @@ describe('ArchivedReposCheck', () => {
 
         await check.check(archivedContext);
 
-        expect(mockCore.info).toHaveBeenCalledWith(
+        expect(mockLogger.info).toHaveBeenCalledWith(
           expect.stringContaining('Repository owner/test-repo is archived')
         );
       });
@@ -444,7 +443,7 @@ describe('ArchivedReposCheck', () => {
         expect(result.details?.recommendations).toContain(
           'Repository has no stars or forks and has been inactive for 6+ months - consider archiving'
         );
-        expect(mockCore.info).toHaveBeenCalledWith(
+        expect(mockLogger.info).toHaveBeenCalledWith(
           expect.stringContaining('Repository has no stars or forks')
         );
       });
@@ -491,7 +490,7 @@ describe('ArchivedReposCheck', () => {
 
         const result = await check.check(recentContext);
 
-        expect(mockCore.debug).toHaveBeenCalledWith(
+        expect(mockLogger.debug).toHaveBeenCalledWith(
           'Could not fetch repository metrics: API rate limit exceeded'
         );
         expect(result.compliant).toBe(true); // Should still work without metrics
@@ -519,7 +518,7 @@ describe('ArchivedReposCheck', () => {
         // The repo is non-compliant because it's within 365 days of activity
         expect(result.compliant).toBe(false);
         expect(result.error).toBeUndefined();
-        expect(mockCore.debug).toHaveBeenCalledWith(
+        expect(mockLogger.debug).toHaveBeenCalledWith(
           expect.stringContaining('Could not fetch repository metrics: Network error')
         );
       });
@@ -631,7 +630,7 @@ describe('ArchivedReposCheck', () => {
       expect(result.compliant).toBe(true);
       expect(result.fixed).toBe(true);
       expect(result.message).toBe('Applied 1 archival changes');
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Archived repository owner/test-repo (reason: inactive)'
       );
     });
@@ -659,7 +658,7 @@ describe('ArchivedReposCheck', () => {
       expect(result.compliant).toBe(true);
       expect(result.fixed).toBe(true);
       expect(result.message).toBe('Applied 1 archival changes');
-      expect(mockCore.info).toHaveBeenCalledWith(
+      expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Unarchived repository owner/test-repo (reason: keep_active_pattern)'
       );
     });
@@ -693,7 +692,7 @@ describe('ArchivedReposCheck', () => {
 
       const result = await check.fix(context);
 
-      expect(mockCore.warning).toHaveBeenCalledWith(
+      expect(mockLogger.warning).toHaveBeenCalledWith(
         'Unknown archived repos action: unknown_action'
       );
       expect(result.compliant).toBe(false);
@@ -715,7 +714,7 @@ describe('ArchivedReposCheck', () => {
 
       const result = await check.fix(context);
 
-      expect(mockCore.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to apply archive_repository')
       );
       expect(result.compliant).toBe(false);
@@ -737,7 +736,7 @@ describe('ArchivedReposCheck', () => {
 
       await check.fix(context);
 
-      expect(mockCore.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         'Cannot modify an archived repository. Manual intervention may be required.'
       );
     });
@@ -757,7 +756,7 @@ describe('ArchivedReposCheck', () => {
 
       await check.fix(context);
 
-      expect(mockCore.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         'Insufficient permissions to archive/unarchive repository.'
       );
     });
@@ -802,7 +801,7 @@ describe('ArchivedReposCheck', () => {
       expect(result.compliant).toBe(false);
       expect(result.error).toBe('Unexpected error during check');
       expect(result.message).toBe('Failed to update repository archival status');
-      expect(mockCore.error).toHaveBeenCalledWith(
+      expect(mockLogger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to fix archived repos')
       );
     });

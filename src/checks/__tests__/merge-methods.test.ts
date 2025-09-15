@@ -1,12 +1,18 @@
-import * as core from '@actions/core';
 import type { ComplianceConfig } from '../../config/types';
 import type { GitHubClient, Repository } from '../../github/types';
+import { type Logger, resetLogger, setLogger } from '../../logging';
 import type { CheckContext } from '../base';
 import { MergeMethodsCheck } from '../merge-methods';
 
-// Mock @actions/core
-jest.mock('@actions/core');
-const mockCore = core as jest.Mocked<typeof core>;
+const mockLogger: jest.Mocked<Logger> = {
+  info: jest.fn(),
+  success: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  startGroup: jest.fn(),
+  endGroup: jest.fn(),
+};
 
 // Mock GitHubClient
 const mockClient: Partial<GitHubClient> = {
@@ -70,18 +76,11 @@ describe('MergeMethodsCheck', () => {
       repository: mockRepository,
     };
     jest.clearAllMocks();
-    mockCore.info.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.warning.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.error.mockImplementation(() => {
-      /* mock */
-    });
-    mockCore.debug.mockImplementation(() => {
-      /* mock */
-    });
+    setLogger(mockLogger);
+  });
+
+  afterEach(() => {
+    resetLogger();
   });
 
   describe('shouldRun', () => {
@@ -344,7 +343,7 @@ describe('MergeMethodsCheck', () => {
         expect(result.compliant).toBe(false);
         expect(result.error).toBe('Repository not found');
         expect(result.message).toBe('Failed to check merge methods configuration');
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to check merge methods')
         );
       });
@@ -432,7 +431,7 @@ describe('MergeMethodsCheck', () => {
       expect(result.compliant).toBe(true);
       expect(result.fixed).toBe(true);
       expect(result.message).toBe('Merge methods configuration has been updated');
-      expect(mockCore.info).toHaveBeenCalledWith('✅ Updated merge methods for owner/test-repo');
+      expect(mockLogger.info).toHaveBeenCalledWith('✅ Updated merge methods for owner/test-repo');
     });
 
     it('should fix squash merge setting', async () => {
@@ -541,7 +540,7 @@ describe('MergeMethodsCheck', () => {
 
         const result = await check.fix(context);
 
-        expect(mockCore.error).toHaveBeenCalledWith(
+        expect(mockLogger.error).toHaveBeenCalledWith(
           expect.stringContaining('Failed to fix merge methods')
         );
         expect(result.compliant).toBe(false);

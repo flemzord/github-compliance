@@ -1,4 +1,4 @@
-import * as core from '@actions/core';
+import * as logger from '../logging';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckDetails, CollaboratorPermissions } from './types';
 
@@ -79,7 +79,7 @@ export class TeamPermissionsCheck extends BaseCheck {
         for (const currentTeam of currentTeams) {
           if (!expectedTeamSlugs.includes(currentTeam.slug)) {
             issues.push(`Team '${currentTeam.slug}' has unauthorized access and should be removed`);
-            core.warning(
+            logger.warning(
               `Team '${currentTeam.slug}' has access to ${repository.full_name} but is not in configuration - will be removed`
             );
             if (details.actions_needed) {
@@ -128,7 +128,7 @@ export class TeamPermissionsCheck extends BaseCheck {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(
+      logger.error(
         `Failed to check permissions for ${context.repository.full_name}: ${errorMessage}`
       );
       return this.createErrorResult('Failed to check repository permissions', errorMessage);
@@ -182,7 +182,7 @@ export class TeamPermissionsCheck extends BaseCheck {
                   permission: action.permission || action.new_permission,
                 },
               });
-              core.info(
+              logger.info(
                 `✅ ${action.action === 'add_team' ? 'Added' : 'Updated'} team ${action.team} for ${repository.full_name}`
               );
               break;
@@ -193,7 +193,9 @@ export class TeamPermissionsCheck extends BaseCheck {
                 action: 'remove_team',
                 details: { team: action.team },
               });
-              core.info(`✅ Removed unauthorized team ${action.team} from ${repository.full_name}`);
+              logger.info(
+                `✅ Removed unauthorized team ${action.team} from ${repository.full_name}`
+              );
               break;
 
             case 'remove_collaborator':
@@ -202,13 +204,15 @@ export class TeamPermissionsCheck extends BaseCheck {
                 action: 'remove_collaborator',
                 details: { username: action.username },
               });
-              core.info(`✅ Removed collaborator ${action.username} from ${repository.full_name}`);
+              logger.info(
+                `✅ Removed collaborator ${action.username} from ${repository.full_name}`
+              );
               break;
           }
         } catch (actionError) {
           const errorMessage =
             actionError instanceof Error ? actionError.message : String(actionError);
-          core.error(
+          logger.error(
             `Failed to apply ${action.action} for ${repository.full_name}: ${errorMessage}`
           );
         }
@@ -227,7 +231,9 @@ export class TeamPermissionsCheck extends BaseCheck {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      core.error(`Failed to fix permissions for ${context.repository.full_name}: ${errorMessage}`);
+      logger.error(
+        `Failed to fix permissions for ${context.repository.full_name}: ${errorMessage}`
+      );
       return this.createErrorResult('Failed to update repository permissions', errorMessage);
     }
   }

@@ -1,6 +1,6 @@
 # Configuration Reference
 
-This document provides a comprehensive reference for all configuration options available in the GitHub Compliance Action. The configuration is defined in a YAML file and validated using strict schemas.
+This document provides a comprehensive reference for all configuration options available in the GitHub Compliance CLI. The configuration is defined in a YAML file and validated using strict schemas.
 
 ## Table of Contents
 
@@ -53,7 +53,7 @@ The version field ensures configuration compatibility. Currently, only version 1
 organization: "my-github-org"
 ```
 
-The GitHub organization name to scan for compliance. If not specified, the action will use the current repository's organization.
+The GitHub organization name to scan for compliance. If omitted, provide the organization name via the `--org` flag when running the CLI.
 
 ## Defaults Section
 
@@ -485,4 +485,4 @@ The configuration is validated against a strict Zod schema. Common validation er
 - Type mismatches (e.g., string instead of boolean)
 - Invalid patterns or team names
 
-Run the action in dry-run mode to validate your configuration without making changes.
+Run the CLI in dry-run mode to validate your configuration without making changes.
