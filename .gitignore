@@ -56,3 +56,4 @@ TODO.md
 coverage-base
 # CLI build output
 dist-cli/
+dist/
