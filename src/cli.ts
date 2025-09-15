@@ -15,7 +15,7 @@ const HELP_TEXT = `
 GitHub Compliance CLI
 
 Usage:
-  compliance-cli --config <path> --token <token> [options]
+  github-compliance-cli --config <path> --token <token> [options]
 
 Options:
   --config, -c <path>      Path to compliance configuration YAML file (required)
@@ -33,16 +33,16 @@ Options:
 
 Examples:
   # Run all checks in dry-run mode
-  compliance-cli --config compliance.yml --token ghp_xxx --dry-run
+  github-compliance-cli --config compliance.yml --token ghp_xxx --dry-run
 
   # Check specific repositories
-  compliance-cli -c config.yml -t ghp_xxx --repos "repo1,repo2"
+  github-compliance-cli -c config.yml -t ghp_xxx --repos "repo1,repo2"
 
   # Run specific checks only
-  compliance-cli -c config.yml -t ghp_xxx --checks "merge-methods,security-scanning"
+  github-compliance-cli -c config.yml -t ghp_xxx --checks "merge-methods,security-scanning"
 
   # Generate JSON report
-  compliance-cli -c config.yml -t ghp_xxx --format json --output report.json
+  github-compliance-cli -c config.yml -t ghp_xxx --format json --output report.json
 
 Environment Variables:
   GITHUB_TOKEN    GitHub token (alternative to --token flag)

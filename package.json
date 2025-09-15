@@ -54,7 +54,7 @@
     "typescript": "^5.9.2"
   },
   "bin": {
-    "compliance-cli": "dist/cli.js"
+    "github-github-compliance-cli": "dist/cli.js"
   },
   "files": [
     "dist"

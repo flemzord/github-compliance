@@ -38,7 +38,7 @@ npm run cli -- --config compliance.yml --token ghp_xxx --dry-run
 ## Usage
 
 ```bash
-compliance-cli --config <path> --token <token> [options]
+github-compliance-cli --config <path> --token <token> [options]
 ```
 
 | Flag | Description |
@@ -59,17 +59,17 @@ compliance-cli --config <path> --token <token> [options]
 
 ```bash
 # Dry-run across the entire organization
-compliance-cli --config .github/compliance.yml --token $GITHUB_TOKEN --dry-run
+github-compliance-cli --config .github/compliance.yml --token $GITHUB_TOKEN --dry-run
 
 # Audit only selected repositories
-compliance-cli -c compliance.yml -t ghp_xxx --repos "frontend,backend"
+github-compliance-cli -c compliance.yml -t ghp_xxx --repos "frontend,backend"
 
 # Run a subset of checks and output JSON
-compliance-cli -c compliance.yml -t ghp_xxx --checks "merge-methods,security-scanning" \
+github-compliance-cli -c compliance.yml -t ghp_xxx --checks "merge-methods,security-scanning" \
   --format json --output compliance-report.json
 
 # Apply fixes (no dry-run) and include archived repositories
-compliance-cli -c compliance.yml -t ghp_xxx --include-archived
+github-compliance-cli -c compliance.yml -t ghp_xxx --include-archived
 ```
 
 ## Configuration
