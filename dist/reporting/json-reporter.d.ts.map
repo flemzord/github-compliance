@@ -1,1 +1,0 @@
-{"version":3,"file":"json-reporter.d.ts","sourceRoot":"","sources":["file:///Users/flemzord/Project/Projects/github-compliance-action/src/reporting/json-reporter.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,YAAY,EAAE,MAAM,iBAAiB,CAAC;AAEpD,qBAAa,YAAY;IACvB;;OAEG;IACH,cAAc,CAAC,MAAM,EAAE,YAAY,GAAG,MAAM;IAI5C;;OAEG;IACH,eAAe,CAAC,MAAM,EAAE,YAAY,GAAG,MAAM;CAsB9C"}
