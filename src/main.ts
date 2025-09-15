@@ -1,130 +1,153 @@
+import { existsSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as core from '@actions/core';
-import { validateDefaults, validateFromFile } from './config';
+import * as github from '@actions/github';
+import type { ComplianceConfig } from './config/types';
+import { validateFromString } from './config/validator';
+import { GitHubClient } from './github/client';
+import { JsonReporter, MarkdownReporter } from './reporting';
+import { ComplianceRunner } from './runner';
+import type { RunnerOptions } from './runner/types';
 
-interface ActionInputs {
-  token: string;
-  configPath: string;
-  dryRun: boolean;
-  checks?: string[] | undefined;
-  includeArchived: boolean;
-  repos?: string[] | undefined;
-}
-
-interface ActionOutputs {
-  reportPath: string;
-  compliancePercentage: number;
-  nonCompliantCount: number;
-  summary: string;
-}
-
-function parseInputs(): ActionInputs {
-  const token = core.getInput('token', { required: true });
-  const configPath = core.getInput('config_path') || '.github/compliance.yml';
-  const dryRun = core.getBooleanInput('dry_run') ?? true;
-  const includeArchived = core.getBooleanInput('include_archived') ?? false;
-
-  // Parse comma-separated lists
-  const checksInput = core.getInput('checks');
-  const checks = checksInput
-    ? checksInput
-        .split(',')
-        .map((c) => c.trim())
-        .filter(Boolean)
-    : undefined;
-
-  const reposInput = core.getInput('repos');
-  const repos = reposInput
-    ? reposInput
-        .split(',')
-        .map((r) => r.trim())
-        .filter(Boolean)
-    : undefined;
-
-  return {
-    token,
-    configPath,
-    dryRun,
-    checks: checks ?? undefined,
-    includeArchived,
-    repos: repos ?? undefined,
-  };
-}
-
-function setOutputs(outputs: ActionOutputs): void {
-  core.setOutput('report_path', outputs.reportPath);
-  core.setOutput('compliance_percentage', outputs.compliancePercentage.toString());
-  core.setOutput('non_compliant_count', outputs.nonCompliantCount.toString());
-  core.setOutput('summary', outputs.summary);
-}
-
-async function run(): Promise<void> {
+/**
+ * Main entry point for the GitHub Action
+ */
+export async function run(): Promise<void> {
   try {
-    const inputs = parseInputs();
+    core.info('🚀 GitHub Compliance Action starting...');
 
-    core.info(`Starting compliance check with config: ${inputs.configPath}`);
-    core.info(`Dry run mode: ${inputs.dryRun}`);
-    core.info(`Include archived repos: ${inputs.includeArchived}`);
+    // Get inputs
+    const token = core.getInput('token', { required: true });
+    const configPath = core.getInput('config_path', { required: true });
+    const dryRun = core.getBooleanInput('dry_run');
+    const checksInput = core.getInput('checks');
+    const includeArchived = core.getBooleanInput('include_archived');
+    const reposInput = core.getInput('repos');
+    const reportFormat = core.getInput('report_format') || 'markdown';
 
-    if (inputs.checks) {
-      core.info(`Running specific checks: ${inputs.checks.join(', ')}`);
-    }
-
-    if (inputs.repos) {
-      core.info(`Filtering repositories: ${inputs.repos.join(', ')}`);
-    }
+    // Parse optional inputs
+    const checks = checksInput ? checksInput.split(',').map((s) => s.trim()) : undefined;
+    const repos = reposInput ? reposInput.split(',').map((s) => s.trim()) : undefined;
 
     // Validate configuration
-    const config = await validateFromFile(inputs.configPath);
-    const warnings = validateDefaults(config);
+    core.info('📋 Loading and validating configuration...');
+    const configFullPath = resolve(process.cwd(), configPath);
 
-    for (const warning of warnings) {
-      core.warning(warning);
+    if (!existsSync(configFullPath)) {
+      throw new Error(`Configuration file not found: ${configFullPath}`);
     }
 
-    core.info('Configuration validated successfully');
+    const result = await validateFromString(configFullPath);
+    const config = typeof result === 'object' && 'config' in result ? result.config : result;
+    const warnings = (
+      typeof result === 'object' && 'warnings' in result ? result.warnings : []
+    ) as string[];
 
-    // TODO: Implement actual compliance checking
-    // For now, return placeholder values
-    const outputs: ActionOutputs = {
-      reportPath: './compliance-report.json',
-      compliancePercentage: 100,
-      nonCompliantCount: 0,
-      summary: 'All repositories are compliant (placeholder)',
+    // Log warnings
+    if (Array.isArray(warnings) && warnings.length > 0) {
+      core.warning('Configuration warnings:');
+      for (const warning of warnings) {
+        core.warning(`  - ${warning}`);
+      }
+    }
+
+    // Create GitHub client
+    core.info('🔗 Connecting to GitHub...');
+    const client = new GitHubClient({
+      token,
+      throttle: {
+        enabled: true,
+        retries: 3,
+        retryDelay: 1000,
+      },
+    });
+
+    // Set organization context if running in GitHub Actions
+    const context = github.context;
+    if (context.payload.organization) {
+      client.setOwner(context.payload.organization.login);
+    } else if (context.payload.repository?.full_name) {
+      const [owner] = context.payload.repository.full_name.split('/');
+      client.setOwner(owner);
+    }
+
+    // Create runner options
+    const runnerOptions: RunnerOptions = {
+      dryRun,
+      ...(checks && { checks }),
+      includeArchived,
+      ...(repos && { repos }),
+      concurrency: 5,
     };
 
-    setOutputs(outputs);
-    core.info(`✅ Compliance check completed: ${outputs.compliancePercentage}% compliant`);
+    // Create and run compliance checks
+    core.info('🏃 Running compliance checks...');
+    if (dryRun) {
+      core.info('🔍 Running in DRY-RUN mode - no changes will be made');
+    }
+
+    const runner = new ComplianceRunner(
+      client,
+      config as unknown as ComplianceConfig,
+      runnerOptions
+    );
+    const report = await runner.run();
+
+    // Generate reports
+    core.info('📝 Generating reports...');
+
+    let reportContent: string;
+    let reportPath: string;
+
+    if (reportFormat === 'json') {
+      const jsonReporter = new JsonReporter();
+      reportContent = jsonReporter.generateReport(report);
+      reportPath = 'compliance-report.json';
+    } else {
+      const markdownReporter = new MarkdownReporter();
+      reportContent = markdownReporter.generateReport(report);
+      reportPath = 'compliance-report.md';
+    }
+
+    // Write report to file
+    writeFileSync(reportPath, reportContent);
+    core.info(`Report written to ${reportPath}`);
+
+    // Set outputs
+    core.setOutput('report_path', reportPath);
+    core.setOutput('compliance_percentage', report.compliancePercentage.toString());
+    core.setOutput('non_compliant_count', report.nonCompliantRepositories.toString());
+    core.setOutput('total_repositories', report.totalRepositories.toString());
+    core.setOutput('fixed_repositories', report.fixedRepositories.toString());
+
+    // Generate GitHub Actions summary
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      const markdownReporter = new MarkdownReporter();
+      const summary = markdownReporter.generateSummary(report);
+      await core.summary.addRaw(summary).write();
+    }
+
+    // Set action status based on compliance
+    if (report.nonCompliantRepositories > 0 && !dryRun) {
+      core.setFailed(`${report.nonCompliantRepositories} repositories are non-compliant`);
+    } else if (report.errorRepositories > 0) {
+      core.setFailed(`${report.errorRepositories} repositories had errors during checking`);
+    } else {
+      core.info('✅ All repositories are compliant!');
+    }
   } catch (error) {
     if (error instanceof Error) {
-      core.error(`❌ ${error.message}`);
-
-      // If it's a ConfigValidationError, show detailed issues
-      if ('issues' in error && Array.isArray((error as any).issues)) {
-        const issues = (error as any).issues;
-        if (issues.length > 0) {
-          core.error('Configuration validation errors:');
-          for (const issue of issues) {
-            core.error(`  • ${issue}`);
-          }
-        }
-      }
-
-      // Show the full stack trace in debug mode
+      core.setFailed(error.message);
       if (error.stack) {
         core.debug(error.stack);
       }
-
-      core.setFailed(`Action failed: ${error.message}`);
     } else {
-      const errorMessage = String(error);
-      core.error(errorMessage);
-      core.setFailed(`Action failed: ${errorMessage}`);
+      core.setFailed('An unknown error occurred');
     }
   }
 }
 
+// Run if this is the main module
 if (require.main === module) {
   run();
 }
-
-export { run };

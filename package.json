@@ -6,7 +6,9 @@
   "scripts": {
     "build": "ncc build src/main.ts -o dist --source-map --license licenses.txt",
     "build:watch": "npm run build -- --watch",
+    "build:cli": "tsc src/cli.ts --outDir dist --module commonjs --target es2020",
     "dev": "tsx src/main.ts",
+    "cli": "tsx src/cli.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

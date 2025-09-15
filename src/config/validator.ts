@@ -74,17 +74,22 @@ export async function validateFromString(
         let message = issue.message;
 
         // Add more context for common errors
+        const issueWithDetails = issue as unknown as {
+          code: string;
+          expected?: unknown;
+          received?: unknown;
+          options?: string[];
+          keys?: string[];
+        };
+
         if (issue.code === 'invalid_type') {
-          message = `Expected ${issue.expected}, but received ${(issue as any).received}`;
-        } else if ((issue as any).code === 'invalid_enum_value') {
-          const options = (issue as any).options;
-          message = `Invalid value. Expected one of: ${options.join(', ')}`;
-        } else if (issue.code === 'unrecognized_keys') {
-          const keys = (issue as any).keys;
-          message = `Unrecognized key(s): ${keys.join(', ')}`;
-        } else if ((issue as any).code === 'invalid_literal') {
-          const expected = (issue as any).expected;
-          message = `Must be exactly: ${expected}`;
+          message = `Expected ${issue.expected}, but received ${issueWithDetails.received}`;
+        } else if (issueWithDetails.code === 'invalid_enum_value' && issueWithDetails.options) {
+          message = `Invalid value. Expected one of: ${issueWithDetails.options.join(', ')}`;
+        } else if (issue.code === 'unrecognized_keys' && issueWithDetails.keys) {
+          message = `Unrecognized key(s): ${issueWithDetails.keys.join(', ')}`;
+        } else if (issueWithDetails.code === 'invalid_literal' && issueWithDetails.expected) {
+          message = `Must be exactly: ${issueWithDetails.expected}`;
         }
 
         return `${path}: ${message}`;
