@@ -5,7 +5,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build outputs
-dist/
+# dist/ is committed for GitHub Action distribution
 *.tsbuildinfo
 
 # Coverage reports
