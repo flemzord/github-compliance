@@ -183,7 +183,7 @@ jobs:
           xl_label: 'size/XL'
 
       - name: Comment bundle size
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
