@@ -1,5 +1,9 @@
 {
-  "name": "github-compliance-action",
+  "name": "github-compliance",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flemzord/github-compliance.git"
+  },
   "version": "1.0.0",
   "description": "🛡️ Enforce repository compliance standards across your GitHub organization",
   "main": "dist/index.js",
