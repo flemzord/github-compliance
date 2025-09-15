@@ -212,6 +212,7 @@ export class GitHubClient {
 
   /**
    * Get repository collaborators with permissions
+   * Note: This returns only DIRECT collaborators, not users who have access via teams
    */
   async getCollaborators(owner: string, repo: string): Promise<Collaborator[]> {
     try {
@@ -219,6 +220,7 @@ export class GitHubClient {
       const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listCollaborators, {
         owner,
         repo,
+        affiliation: 'direct' as const,
         per_page: 100,
       });
 

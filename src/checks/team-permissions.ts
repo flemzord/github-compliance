@@ -78,10 +78,19 @@ export class TeamPermissionsCheck extends BaseCheck {
         const expectedTeamSlugs = config.teams.map((t) => t.team);
         for (const currentTeam of currentTeams) {
           if (!expectedTeamSlugs.includes(currentTeam.slug)) {
-            // Only warn, don't automatically remove teams not in config
-            core.warning(
-              `Team '${currentTeam.slug}' has access to ${repository.full_name} but is not in configuration`
+            issues.push(
+              `Team '${currentTeam.slug}' has unauthorized access and should be removed`
             );
+            core.warning(
+              `Team '${currentTeam.slug}' has access to ${repository.full_name} but is not in configuration - will be removed`
+            );
+            if (details.actions_needed) {
+              details.actions_needed.push({
+                action: 'remove_team',
+                team: currentTeam.slug,
+                current_permission: currentTeam.permission,
+              });
+            }
           }
         }
       }
@@ -178,6 +187,15 @@ export class TeamPermissionsCheck extends BaseCheck {
               core.info(
                 `✅ ${action.action === 'add_team' ? 'Added' : 'Updated'} team ${action.team} for ${repository.full_name}`
               );
+              break;
+
+            case 'remove_team':
+              await context.client.removeTeamFromRepository(owner, repo, action.team as string);
+              appliedActions.push({
+                action: 'remove_team',
+                details: { team: action.team },
+              });
+              core.info(`✅ Removed unauthorized team ${action.team} from ${repository.full_name}`);
               break;
 
             case 'remove_collaborator':

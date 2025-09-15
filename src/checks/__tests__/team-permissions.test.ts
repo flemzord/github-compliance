@@ -248,7 +248,7 @@ describe('TeamPermissionsCheck', () => {
         });
       });
 
-      it('should warn about extra teams not in configuration', async () => {
+      it('should detect and remove extra teams not in configuration', async () => {
         const extraTeamPermissions = [
           ...mockTeamPermissions,
           {
@@ -260,12 +260,18 @@ describe('TeamPermissionsCheck', () => {
         ];
         (mockClient.getTeamPermissions as jest.Mock).mockResolvedValue(extraTeamPermissions);
 
-        await check.check(context);
+        const result = await check.check(context);
 
+        expect(result.compliant).toBe(false);
+        expect(result.message).toContain('has unauthorized access and should be removed');
         expect(mockCore.warning).toHaveBeenCalledWith(
-          "Team 'extra-team' has access to owner/test-repo but is not in configuration"
+          "Team 'extra-team' has access to owner/test-repo but is not in configuration - will be removed"
         );
-        // Should not be added to actions_needed since we only warn about extra teams
+        expect(result.details?.actions_needed).toContainEqual({
+          action: 'remove_team',
+          team: 'extra-team',
+          current_permission: 'write',
+        });
       });
 
       it('should handle empty teams configuration', async () => {
