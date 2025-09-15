@@ -43,18 +43,24 @@ export interface Security {
   code_scanning_recommended: boolean;
 }
 
-export interface TeamPermission {
+export interface ConfigTeamPermission {
   team: string;
   permission: string;
 }
 
 export interface Permissions {
   remove_individual_collaborators: boolean;
-  teams: TeamPermission[];
+  teams: ConfigTeamPermission[];
 }
 
 export interface ArchivedRepos {
   admin_team_only: boolean;
+  archive_inactive?: boolean;
+  inactive_days?: number;
+  unarchive_active?: boolean;
+  archive_patterns?: string[];
+  keep_active_patterns?: string[];
+  specific_repos?: string[];
 }
 
 export interface Defaults {

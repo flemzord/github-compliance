@@ -25,20 +25,48 @@ export async function validateFromFile(configPath: string): Promise<ComplianceCo
 export async function validateFromString(
   yamlContent: string,
   sourcePath?: string
-): Promise<ComplianceConfig> {
+): Promise<ComplianceConfig>;
+export async function validateFromString(
+  configPath: string
+): Promise<{ config: ComplianceConfig; warnings: string[] }>;
+export async function validateFromString(
+  yamlContentOrPath: string,
+  sourcePath?: string
+): Promise<ComplianceConfig | { config: ComplianceConfig; warnings: string[] }> {
+  let yamlContent: string;
+  let actualSourcePath: string | undefined;
+
+  // Check if first argument is a file path (used by main-integrated.ts)
+  if (!sourcePath && fs.existsSync(yamlContentOrPath)) {
+    yamlContent = fs.readFileSync(yamlContentOrPath, 'utf8');
+    actualSourcePath = yamlContentOrPath;
+  } else {
+    yamlContent = yamlContentOrPath;
+    actualSourcePath = sourcePath;
+  }
+
   let parsedYaml: unknown;
 
   try {
     parsedYaml = yaml.load(yamlContent);
   } catch (error) {
-    const message = `Invalid YAML syntax${sourcePath ? ` in ${sourcePath}` : ''}`;
+    const message = `Invalid YAML syntax${actualSourcePath ? ` in ${actualSourcePath}` : ''}`;
     throw new ConfigValidationError(message, [
       error instanceof Error ? error.message : String(error),
     ]);
   }
 
   try {
-    return ComplianceConfigSchema.parse(parsedYaml);
+    const config = ComplianceConfigSchema.parse(parsedYaml);
+
+    // If called with file path (main-integrated.ts), return object with warnings
+    if (!sourcePath && fs.existsSync(yamlContentOrPath)) {
+      const warnings = validateDefaults(config);
+      return { config, warnings };
+    }
+
+    // Otherwise return just the config (main-simple.ts)
+    return config;
   } catch (error) {
     if (error instanceof ZodError) {
       const issues = error.issues.map((issue) => {
@@ -46,7 +74,7 @@ export async function validateFromString(
         return `${path}: ${issue.message}`;
       });
 
-      const message = `Configuration validation failed${sourcePath ? ` for ${sourcePath}` : ''}`;
+      const message = `Configuration validation failed${actualSourcePath ? ` for ${actualSourcePath}` : ''}`;
       throw new ConfigValidationError(message, issues);
     }
 

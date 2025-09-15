@@ -1,0 +1,43 @@
+name: 'GitHub Compliance Action'
+description: 'Verify and fix repository compliance based on YAML configuration'
+author: 'FormanceHQ'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  token:
+    description: 'GitHub token (PAT or GITHUB_TOKEN) with required scopes'
+    required: true
+  config_path:
+    description: 'Path to the compliance configuration YAML file'
+    required: false
+    default: '.github/compliance.yml'
+  dry_run:
+    description: 'Run in dry-run mode (no changes applied)'
+    required: false
+    default: 'true'
+  checks:
+    description: 'Comma-separated list of checks to run (e.g., merge-methods,security)'
+    required: false
+  include_archived:
+    description: 'Include archived repositories in compliance checks'
+    required: false
+    default: 'false'
+  repos:
+    description: 'Comma-separated list of repository filters/patterns to restrict checks'
+    required: false
+
+outputs:
+  report_path:
+    description: 'Path to the generated compliance report JSON file'
+  compliance_percentage:
+    description: 'Overall compliance percentage across all checked repositories'
+  non_compliant_count:
+    description: 'Number of repositories that are not fully compliant'
+  summary:
+    description: 'Human-readable summary of compliance results'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

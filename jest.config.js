@@ -4,7 +4,19 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.+(ts|tsx|js)', '**/*.(test|spec).+(ts|tsx|js)'],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true,
+        },
+      },
+    ],
+  },
+  moduleNameMapper: {
+    '@octokit/plugin-throttling': '<rootDir>/src/__mocks__/@octokit/plugin-throttling.js',
+    '@octokit/rest': '<rootDir>/src/__mocks__/@octokit/rest.js',
   },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
@@ -22,7 +34,6 @@ module.exports = {
       statements: 80,
     },
   },
-  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
   testTimeout: 30000,
   verbose: true,
 };

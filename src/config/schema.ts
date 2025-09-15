@@ -51,18 +51,24 @@ const SecuritySchema = z.object({
   code_scanning_recommended: z.boolean(),
 });
 
-const TeamPermissionSchema = z.object({
+const ConfigTeamPermissionSchema = z.object({
   team: z.string(),
   permission: z.enum(['read', 'triage', 'write', 'maintain', 'admin', 'push']),
 });
 
 const PermissionsSchema = z.object({
   remove_individual_collaborators: z.boolean(),
-  teams: z.array(TeamPermissionSchema),
+  teams: z.array(ConfigTeamPermissionSchema),
 });
 
 const ArchivedReposSchema = z.object({
   admin_team_only: z.boolean(),
+  archive_inactive: z.boolean().optional(),
+  inactive_days: z.number().optional(),
+  unarchive_active: z.boolean().optional(),
+  archive_patterns: z.array(z.string()).optional(),
+  keep_active_patterns: z.array(z.string()).optional(),
+  specific_repos: z.array(z.string()).optional(),
 });
 
 const DefaultsSchema = z

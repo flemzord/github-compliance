@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/main-integrated.ts"],
+  "project": ["src/**/*.ts"],
+  "ignore": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "includeEntryExports": false,
+  "ignoreExportsUsedInFile": true
+}
