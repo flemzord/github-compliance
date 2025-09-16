@@ -23,7 +23,8 @@
     "lint:knip:fix": "knip --fix --allow-remove-files",
     "lint:types": "tsc --noEmit",
     "format": "biome format --write .",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "pre-commit": "npm run lint:fix && npm run test:coverage"
   },
   "keywords": [
     "github",
