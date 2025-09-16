@@ -2,7 +2,7 @@
 
 import { existsSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseArgs } from 'node:util';
+import { Command } from 'commander';
 import type { ComplianceConfig } from './config/types';
 import { validateFromString } from './config/validator';
 import { GitHubClient } from './github/client';
@@ -11,146 +11,38 @@ import { JsonReporter, MarkdownReporter } from './reporting';
 import { ComplianceRunner } from './runner';
 import type { RunnerOptions } from './runner/types';
 
-const HELP_TEXT = `
-GitHub Compliance CLI
-
-Usage:
-  github-compliance-cli --config <path> --token <token> [options]
-
-Options:
-  --config, -c <path>      Path to compliance configuration YAML file (required)
-  --token, -t <token>      GitHub personal access token (required, or use GITHUB_TOKEN env)
-  --org, -o <name>         GitHub organization name (optional, will be read from config)
-  --dry-run, -d            Run in dry-run mode (no changes will be made)
-  --repos <list>           Comma-separated list of repository names to check
-  --checks <list>          Comma-separated list of checks to run
-  --include-archived       Include archived repositories
-  --format <type>          Report format: json or markdown (default: markdown)
-  --output, -o <path>      Output file path (default: compliance-report.[md|json])
-  --mode <type>            Output mode: compact, detailed, or json (default: compact)
-  --verbose, -v            Enable verbose logging
-  --quiet, -q              Minimal output (only errors and summary)
-  --help, -h               Show this help message
-
-Examples:
-  # Run all checks in dry-run mode
-  github-compliance-cli --config compliance.yml --token ghp_xxx --dry-run
-
-  # Check specific repositories
-  github-compliance-cli -c config.yml -t ghp_xxx --repos "repo1,repo2"
-
-  # Run specific checks only
-  github-compliance-cli -c config.yml -t ghp_xxx --checks "merge-methods,security-scanning"
-
-  # Generate JSON report
-  github-compliance-cli -c config.yml -t ghp_xxx --format json --output report.json
-
-Environment Variables:
-  GITHUB_TOKEN    GitHub token (alternative to --token flag)
-`;
-
-interface CLIOptions {
+interface RunOptions {
   config: string;
-  token?: string | undefined;
-  org?: string | undefined;
-  dryRun: boolean;
-  repos?: string[] | undefined;
-  checks?: string[] | undefined;
-  includeArchived: boolean;
-  format: 'json' | 'markdown';
-  output?: string | undefined;
-  verbose: boolean;
-  quiet: boolean;
-  mode?: 'compact' | 'detailed' | 'json';
+  token?: string;
+  org?: string;
+  dryRun?: boolean;
+  repos?: string;
+  checks?: string;
+  includeArchived?: boolean;
+  format?: string;
+  output?: string;
+  mode?: string;
+  verbose?: boolean;
+  quiet?: boolean;
 }
 
-function parseCliArgs(): CLIOptions {
-  const { values } = parseArgs({
-    args: process.argv.slice(2),
-    options: {
-      config: { type: 'string', short: 'c' },
-      token: { type: 'string', short: 't' },
-      org: { type: 'string', short: 'o' },
-      'dry-run': { type: 'boolean', short: 'd', default: false },
-      repos: { type: 'string' },
-      checks: { type: 'string' },
-      'include-archived': { type: 'boolean', default: false },
-      format: { type: 'string', default: 'markdown' },
-      output: { type: 'string' },
-      mode: { type: 'string', default: 'compact' },
-      verbose: { type: 'boolean', short: 'v', default: false },
-      quiet: { type: 'boolean', short: 'q', default: false },
-      help: { type: 'boolean', short: 'h', default: false },
-    },
-    allowPositionals: true,
-  });
-
-  if (values.help) {
-    console.log(HELP_TEXT);
-    process.exit(0);
-  }
-
-  if (!values.config) {
-    console.error('Error: --config flag is required');
-    console.log(HELP_TEXT);
-    process.exit(1);
-  }
-
-  // Get token from flag or environment
-  const token = values.token || process.env.GITHUB_TOKEN;
-  if (!token) {
-    console.error('Error: --token flag or GITHUB_TOKEN environment variable is required');
-    process.exit(1);
-  }
-
-  // Validate format
-  const format = values.format as string;
-  if (format !== 'json' && format !== 'markdown') {
-    console.error('Error: --format must be either "json" or "markdown"');
-    process.exit(1);
-  }
-
-  // Check for conflicting verbose and quiet flags
-  if (values.verbose && values.quiet) {
-    console.error('Error: --verbose and --quiet cannot be used together');
-    process.exit(1);
-  }
-
-  // Validate mode
-  const mode = values.mode as string;
-  if (mode && !['compact', 'detailed', 'json'].includes(mode)) {
-    console.error(`Error: Invalid mode '${mode}'. Must be one of: compact, detailed, json`);
-    process.exit(1);
-  }
-
-  return {
-    config: values.config,
-    token,
-    org: values.org as string | undefined,
-    dryRun: values['dry-run'] as boolean,
-    repos: values.repos ? (values.repos as string).split(',').map((r) => r.trim()) : undefined,
-    checks: values.checks ? (values.checks as string).split(',').map((c) => c.trim()) : undefined,
-    includeArchived: values['include-archived'] as boolean,
-    format: format as 'json' | 'markdown',
-    output: values.output as string | undefined,
-    mode: (mode as 'compact' | 'detailed' | 'json') || 'compact',
-    verbose: values.verbose as boolean,
-    quiet: values.quiet as boolean,
-  };
+interface ValidateOptions {
+  config: string;
+  verbose?: boolean;
+  quiet?: boolean;
 }
 
-async function main(): Promise<void> {
-  const options = parseCliArgs();
-
+async function runCommand(options: RunOptions): Promise<void> {
   // Use ProgressLogger for compact and detailed modes, ConsoleLogger for backward compatibility
+  const mode = options.mode || 'compact';
   const logger =
-    options.mode === 'compact' || options.mode === 'detailed'
+    mode === 'compact' || mode === 'detailed'
       ? new ProgressLogger({
-          verbose: options.verbose,
-          quiet: options.quiet,
-          mode: options.mode,
+          verbose: options.verbose || false,
+          quiet: options.quiet || false,
+          mode: mode as 'compact' | 'detailed',
         })
-      : new ConsoleLogger({ verbose: options.verbose, quiet: options.quiet });
+      : new ConsoleLogger({ verbose: options.verbose || false, quiet: options.quiet || false });
 
   setLogger(logger);
 
@@ -201,12 +93,18 @@ async function main(): Promise<void> {
       throw new Error('Organization name must be provided via --org flag or in configuration file');
     }
 
+    // Get token from flag or environment
+    const token = options.token || process.env.GITHUB_TOKEN;
+    if (!token) {
+      throw new Error('--token flag or GITHUB_TOKEN environment variable is required');
+    }
+
     // Create GitHub client
     if (!(logger instanceof ProgressLogger)) {
       logger.info('🔗 Connecting to GitHub...');
     }
     const client = new GitHubClient({
-      token: options.token || '',
+      token: token,
       throttle: {
         enabled: true,
         retries: 3,
@@ -217,10 +115,10 @@ async function main(): Promise<void> {
 
     // Create runner options
     const runnerOptions: RunnerOptions = {
-      dryRun: options.dryRun,
-      ...(options.checks && { checks: options.checks }),
-      includeArchived: options.includeArchived,
-      ...(options.repos && { repos: options.repos }),
+      dryRun: options.dryRun || false,
+      ...(options.checks && { checks: options.checks.split(',').map((c) => c.trim()) }),
+      includeArchived: options.includeArchived || false,
+      ...(options.repos && { repos: options.repos.split(',').map((r) => r.trim()) }),
       concurrency: 5,
     };
 
@@ -252,7 +150,8 @@ async function main(): Promise<void> {
     let reportContent: string;
     let reportPath: string;
 
-    if (options.format === 'json') {
+    const format = options.format || 'markdown';
+    if (format === 'json') {
       const jsonReporter = new JsonReporter();
       reportContent = jsonReporter.generateReport(report);
       reportPath = options.output || 'compliance-report.json';
@@ -309,12 +208,224 @@ async function main(): Promise<void> {
   }
 }
 
-// Run the CLI
-if (require.main === module) {
-  main().catch((error) => {
-    console.error('Fatal error:', error);
-    process.exit(1);
+async function validateCommand(options: ValidateOptions): Promise<void> {
+  const logger = new ConsoleLogger({
+    verbose: options.verbose || false,
+    quiet: options.quiet || false,
   });
+  setLogger(logger);
+
+  try {
+    // Validate configuration file exists
+    const configPath = resolve(process.cwd(), options.config);
+    if (!existsSync(configPath)) {
+      logger.error(`❌ Configuration file not found: ${configPath}`);
+      process.exit(1);
+    }
+
+    logger.info('🔍 Validating configuration file...\n');
+
+    // Try to load and validate configuration
+    try {
+      const result = await validateFromString(configPath);
+      const config = typeof result === 'object' && 'config' in result ? result.config : result;
+      const warnings = (
+        typeof result === 'object' && 'warnings' in result ? result.warnings : []
+      ) as string[];
+
+      // Display warnings if any
+      if (Array.isArray(warnings) && warnings.length > 0) {
+        logger.warning('⚠️  Warnings found:\n');
+        for (const warning of warnings) {
+          logger.warning(`  • ${warning}`);
+        }
+        logger.info(''); // Empty line
+      }
+
+      // Display summary in verbose mode
+      if (options.verbose) {
+        logger.info('📋 Configuration Summary:\n');
+        logger.info(
+          `  Organization: ${(config as ComplianceConfig).organization || 'Not specified'}`
+        );
+
+        const defaults = (config as ComplianceConfig).defaults;
+        if (defaults) {
+          const checkTypes: string[] = [];
+          if (defaults.merge_methods) checkTypes.push('merge-methods');
+          if (defaults.branch_protection) checkTypes.push('branch-protection');
+          if (defaults.security) checkTypes.push('security');
+          if (defaults.permissions) checkTypes.push('permissions');
+          if (defaults.archived_repos) checkTypes.push('archived-repos');
+
+          if (checkTypes.length > 0) {
+            logger.info(`  Configured checks: ${checkTypes.join(', ')}`);
+          }
+        }
+
+        const rules = (config as ComplianceConfig).rules;
+        if (rules && rules.length > 0) {
+          logger.info(`  Repository rules: ${rules.length} rule(s) configured`);
+          if (options.verbose) {
+            for (let i = 0; i < rules.length; i++) {
+              const rule = rules[i];
+              logger.info(`\n  Rule ${i + 1}:`);
+              if (rule.match.repositories) {
+                logger.info(`    Repositories: ${rule.match.repositories.join(', ')}`);
+              }
+              if (rule.match.only_private !== undefined) {
+                logger.info(`    Only private: ${rule.match.only_private}`);
+              }
+              const appliedChecks = Object.keys(rule.apply);
+              logger.info(`    Applies: ${appliedChecks.join(', ')}`);
+            }
+          }
+        }
+        logger.info(''); // Empty line
+      }
+
+      logger.success('✅ Configuration is valid!');
+
+      // Show basic info even in non-verbose mode
+      if (!options.verbose && !options.quiet) {
+        const defaults = (config as ComplianceConfig).defaults;
+        const checkCount = defaults ? Object.keys(defaults).length : 0;
+        const rules = (config as ComplianceConfig).rules;
+        const ruleCount = rules ? rules.length : 0;
+
+        logger.info(`  Organization: ${(config as ComplianceConfig).organization}`);
+        logger.info(`  Checks configured: ${checkCount}`);
+        logger.info(`  Repository rules: ${ruleCount}`);
+      }
+
+      process.exit(0);
+    } catch (validationError) {
+      // Check if it's a ConfigValidationError with detailed issues
+      const isConfigError = validationError instanceof Error &&
+                           'issues' in validationError &&
+                           Array.isArray((validationError as any).issues);
+
+      if (isConfigError) {
+        const configError = validationError as any;
+        logger.error('❌ Configuration validation failed:\n');
+
+        // Display each validation issue
+        for (const issue of configError.issues) {
+          logger.error(`  • ${issue}`);
+        }
+
+        logger.info('\n💡 Tips for fixing validation errors:');
+        logger.info('  • Check the YAML syntax is correct');
+        logger.info('  • Ensure all required fields are present');
+        logger.info('  • Verify field types match the schema (strings, booleans, numbers)');
+        logger.info('  • Check enum values are from the allowed list');
+        logger.info('  • Review the example configuration in the documentation');
+
+        if (options.verbose) {
+          logger.info('\n📖 Schema documentation: https://github.com/flemzord/github-compliance');
+        }
+      } else if (validationError instanceof Error) {
+        logger.error(`❌ Validation failed: ${validationError.message}`);
+
+        if (options.verbose && validationError.stack) {
+          console.error('\nStack trace:', validationError.stack);
+        }
+      } else {
+        logger.error('❌ An unknown error occurred during validation');
+      }
+
+      process.exit(1);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error(`❌ Error: ${error.message}`);
+      if (options.verbose && error.stack) {
+        console.error(error.stack);
+      }
+    } else {
+      logger.error('❌ An unknown error occurred');
+    }
+    process.exit(1);
+  }
 }
 
-export { main };
+function main(): void {
+  const program = new Command();
+
+  program
+    .name('github-compliance-cli')
+    .description('🛡️ CLI to enforce repository compliance standards across your GitHub organization')
+    .version('1.0.0');
+
+  // Run command - existing functionality
+  program
+    .command('run')
+    .description('Run compliance checks on repositories')
+    .requiredOption('-c, --config <path>', 'Path to compliance configuration YAML file')
+    .option('-t, --token <token>', 'GitHub personal access token (or use GITHUB_TOKEN env)')
+    .option('-o, --org <name>', 'GitHub organization name (optional, will be read from config)')
+    .option('-d, --dry-run', 'Run in dry-run mode (no changes will be made)', false)
+    .option('--repos <list>', 'Comma-separated list of repository names to check')
+    .option('--checks <list>', 'Comma-separated list of checks to run')
+    .option('--include-archived', 'Include archived repositories', false)
+    .option('--format <type>', 'Report format: json or markdown', 'markdown')
+    .option('--output <path>', 'Output file path (default: compliance-report.[md|json])')
+    .option('--mode <type>', 'Output mode: compact, detailed, or json', 'compact')
+    .option('-v, --verbose', 'Enable verbose logging', false)
+    .option('-q, --quiet', 'Minimal output (only errors and summary)', false)
+    .action(async (options) => {
+      // Validate format
+      if (options.format !== 'json' && options.format !== 'markdown') {
+        console.error('Error: --format must be either "json" or "markdown"');
+        process.exit(1);
+      }
+
+      // Check for conflicting verbose and quiet flags
+      if (options.verbose && options.quiet) {
+        console.error('Error: --verbose and --quiet cannot be used together');
+        process.exit(1);
+      }
+
+      // Validate mode
+      if (options.mode && !['compact', 'detailed', 'json'].includes(options.mode)) {
+        console.error(
+          `Error: Invalid mode '${options.mode}'. Must be one of: compact, detailed, json`
+        );
+        process.exit(1);
+      }
+
+      await runCommand(options);
+    });
+
+  // Validate command - new functionality
+  program
+    .command('validate')
+    .description('Validate a compliance configuration file')
+    .requiredOption('-c, --config <path>', 'Path to compliance configuration YAML file')
+    .option('-v, --verbose', 'Show detailed validation information', false)
+    .option('-q, --quiet', 'Minimal output (only errors)', false)
+    .action(async (options) => {
+      // Check for conflicting verbose and quiet flags
+      if (options.verbose && options.quiet) {
+        console.error('Error: --verbose and --quiet cannot be used together');
+        process.exit(1);
+      }
+
+      await validateCommand(options);
+    });
+
+  // Parse arguments
+  program.parse(process.argv);
+
+  // Show help if no command provided
+  if (process.argv.length < 3) {
+    program.help();
+  }
+}
+
+// Run the CLI
+if (require.main === module) {
+  main();
+}
+
+export { main, runCommand, validateCommand };

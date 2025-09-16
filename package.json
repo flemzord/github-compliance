@@ -41,6 +41,7 @@
     "@octokit/rest": "^22.0.0",
     "chalk": "^5.6.2",
     "cli-table3": "^0.6.5",
+    "commander": "^14.0.1",
     "js-yaml": "^4.1.0",
     "log-update": "^7.0.0",
     "ora": "^9.0.0",
@@ -58,7 +59,7 @@
     "typescript": "^5.9.2"
   },
   "bin": {
-    "github-github-compliance-cli": "dist/cli.js"
+    "github-compliance-cli": "dist/cli.js"
   },
   "files": [
     "dist"

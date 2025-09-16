@@ -2,6 +2,45 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CLI Usage
+
+The CLI now uses subcommands for different operations:
+
+### Run Command
+Executes compliance checks on repositories:
+```bash
+# Basic usage
+github-compliance-cli run --config compliance.yml --token ghp_xxx
+
+# Dry-run mode (no changes)
+github-compliance-cli run --config compliance.yml --token ghp_xxx --dry-run
+
+# Check specific repositories
+github-compliance-cli run -c config.yml -t ghp_xxx --repos "repo1,repo2"
+
+# Run specific checks only
+github-compliance-cli run -c config.yml -t ghp_xxx --checks "merge-methods,security-scanning"
+
+# Generate JSON report
+github-compliance-cli run -c config.yml -t ghp_xxx --format json --output report.json
+
+# Use different output modes
+github-compliance-cli run -c config.yml -t ghp_xxx --mode detailed  # or compact, json
+```
+
+### Validate Command
+Validates a compliance configuration file:
+```bash
+# Basic validation
+github-compliance-cli validate --config compliance.yml
+
+# Verbose validation with details
+github-compliance-cli validate --config compliance.yml --verbose
+
+# Quiet mode (errors only)
+github-compliance-cli validate --config compliance.yml --quiet
+```
+
 ## Development Commands
 
 ### Essential Development Workflow
@@ -52,7 +91,7 @@ npm run lint:types
 ## Code Architecture
 
 ### High-Level System Flow
-1. **CLI Entry Point** (`src/cli.ts`) - Parses CLI arguments, validates config, orchestrates runs
+1. **CLI Entry Point** (`src/cli.ts`) - Commander-based CLI with subcommands (run, validate)
 2. **Configuration System** (`src/config/`) - YAML validation using Zod schemas
 3. **Compliance Runner** (`src/runner/`) - Orchestrates repository discovery and check execution
 4. **Check System** (`src/checks/`) - Pluggable compliance checks with base class

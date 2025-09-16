@@ -72,6 +72,7 @@ export async function validateFromString(
       const issues = error.issues.map((issue) => {
         const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
         let message = issue.message;
+        let helpText = '';
 
         // Add more context for common errors
         const issueWithDetails = issue as unknown as {
@@ -82,17 +83,59 @@ export async function validateFromString(
           keys?: string[];
         };
 
+        // Provide helpful context based on the field path
+        const fieldContext = getFieldContext(path);
+
         if (issue.code === 'invalid_type') {
           message = `Expected ${issue.expected}, but received ${issueWithDetails.received}`;
+
+          // Add specific help for common fields
+          if (path.includes('restrictions')) {
+            helpText = `\n    → The 'restrictions' field defines who can push to protected branches.
+    → Example: restrictions: { users: [], teams: ['admin-team'] }
+    → If no restrictions needed: restrictions: { users: [], teams: [] }`;
+          } else if (path.includes('required_reviews')) {
+            helpText = `\n    → The 'required_reviews' field configures pull request review requirements.
+    → Example: required_reviews: { dismiss_stale_reviews: true, require_code_owner_reviews: true, required_approving_review_count: 2 }`;
+          } else if (path.includes('required_status_checks')) {
+            helpText = `\n    → The 'required_status_checks' field ensures CI/CD checks pass before merging.
+    → Example: required_status_checks: { strict: true, contexts: ['continuous-integration/travis-ci'] }`;
+          } else if (path.includes('patterns')) {
+            helpText = `\n    → The 'patterns' field specifies which branches to protect.
+    → Example: patterns: ['main', 'release/*', 'develop']`;
+          }
         } else if (issueWithDetails.code === 'invalid_enum_value' && issueWithDetails.options) {
           message = `Invalid value. Expected one of: ${issueWithDetails.options.join(', ')}`;
+
+          if (path.includes('secret_scanning')) {
+            helpText = `\n    → 'secret_scanning': Controls GitHub's secret detection in code
+    → 'enabled': Scans for secrets and alerts on findings
+    → 'disabled': No secret scanning
+    → 'secret_scanning_push_protection' can be 'enabled', 'disabled', or 'auto'`;
+          } else if (path.includes('permission')) {
+            helpText = `\n    → Team permissions control repository access levels:
+    → 'read': View code and clone repository
+    → 'triage': Read + manage issues and PRs
+    → 'write': Triage + push code changes
+    → 'maintain': Write + manage repository settings
+    → 'admin': Full control including security settings`;
+          }
         } else if (issue.code === 'unrecognized_keys' && issueWithDetails.keys) {
           message = `Unrecognized key(s): ${issueWithDetails.keys.join(', ')}`;
+          helpText = `\n    → These fields are not valid in this context. Check for typos or consult the schema.`;
         } else if (issueWithDetails.code === 'invalid_literal' && issueWithDetails.expected) {
           message = `Must be exactly: ${issueWithDetails.expected}`;
+          if (path === 'version') {
+            helpText = `\n    → The 'version' field must be exactly 1 (current schema version)`;
+          }
         }
 
-        return `${path}: ${message}`;
+        // Add field context if available
+        if (fieldContext && !helpText) {
+          helpText = `\n    → ${fieldContext}`;
+        }
+
+        return `${path}: ${message}${helpText}`;
       });
 
       const message = `Configuration validation failed${actualSourcePath ? ` for ${actualSourcePath}` : ''}`;
@@ -101,6 +144,34 @@ export async function validateFromString(
 
     throw error;
   }
+}
+
+// Helper function to provide context for common fields
+function getFieldContext(path: string): string {
+  const fieldDescriptions: Record<string, string> = {
+    'defaults.branch_protection': 'Configures branch protection rules for repositories',
+    'defaults.merge_methods': 'Controls which merge strategies are allowed for pull requests',
+    'defaults.security': 'Manages security features like secret scanning and vulnerability alerts',
+    'defaults.permissions': 'Defines team access levels and collaborator management',
+    'defaults.archived_repos': 'Controls access and management of archived repositories',
+    'organization': 'The GitHub organization name to apply compliance rules to',
+    'rules': 'Repository-specific overrides based on patterns or criteria',
+    'checks': 'List of compliance checks to run (deprecated - checks are determined by defaults)',
+  };
+
+  // Check for exact matches first
+  if (fieldDescriptions[path]) {
+    return fieldDescriptions[path];
+  }
+
+  // Check for partial matches
+  for (const [key, description] of Object.entries(fieldDescriptions)) {
+    if (path.startsWith(key)) {
+      return description;
+    }
+  }
+
+  return '';
 }
 
 export function validateDefaults(config: ComplianceConfig): string[] {

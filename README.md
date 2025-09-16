@@ -37,8 +37,12 @@ npm run cli -- --config compliance.yml --token ghp_xxx --dry-run
 
 ## Usage
 
+The CLI provides two main commands:
+
+### `run` - Execute compliance checks
+
 ```bash
-github-compliance-cli --config <path> --token <token> [options]
+github-compliance-cli run --config <path> --token <token> [options]
 ```
 
 | Flag | Description |
@@ -48,33 +52,79 @@ github-compliance-cli --config <path> --token <token> [options]
 | `--org` | GitHub organization name (falls back to `organization` value in config) |
 | `--dry-run`, `-d` | Report issues without applying changes |
 | `--repos` | Comma-separated list of repository names to check |
-| `--checks` | Comma-separated list of checks to run (`merge-methods`, `branch-protection`, `security-scanning`, `team-permissions`, `archived-repos`) |
+| `--checks` | Comma-separated list of checks to run |
 | `--include-archived` | Include archived repositories in the run |
 | `--format` | Report format (`markdown` or `json`, default `markdown`) |
 | `--output`, `-o` | Custom output file path |
+| `--mode` | Output mode (`compact`, `detailed`, or `json`, default `compact`) |
 | `--verbose`, `-v` | Enable verbose logging |
 | `--quiet`, `-q` | Suppress informational logs |
+
+### `validate` - Validate configuration file
+
+```bash
+github-compliance-cli validate --config <path> [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--config`, `-c` | Path to the compliance configuration YAML file (required) |
+| `--verbose`, `-v` | Show detailed configuration summary |
+| `--quiet`, `-q` | Show only errors |
 
 ### Examples
 
 ```bash
+# Validate configuration file
+github-compliance-cli validate --config compliance.yml
+
 # Dry-run across the entire organization
-github-compliance-cli --config .github/compliance.yml --token $GITHUB_TOKEN --dry-run
+github-compliance-cli run --config .github/compliance.yml --token $GITHUB_TOKEN --dry-run
 
 # Audit only selected repositories
-github-compliance-cli -c compliance.yml -t ghp_xxx --repos "frontend,backend"
+github-compliance-cli run -c compliance.yml -t ghp_xxx --repos "frontend,backend"
 
-# Run a subset of checks and output JSON
-github-compliance-cli -c compliance.yml -t ghp_xxx --checks "merge-methods,security-scanning" \
+# Run specific checks with JSON output
+github-compliance-cli run -c compliance.yml -t ghp_xxx \
+  --checks "merge-methods,security-scanning" \
   --format json --output compliance-report.json
 
 # Apply fixes (no dry-run) and include archived repositories
-github-compliance-cli -c compliance.yml -t ghp_xxx --include-archived
+github-compliance-cli run -c compliance.yml -t ghp_xxx --include-archived
 ```
 
 ## Configuration
 
 📚 **[Configuration Reference](./docs/configuration-reference.md)** – Full documentation covering every option.
+
+### IDE Integration with JSON Schema
+
+This project provides a JSON Schema for the compliance configuration file. This enables:
+- ✨ **Autocompletion** in your IDE
+- ✅ **Real-time validation** as you type
+- 📝 **Inline documentation** for all fields
+
+#### VSCode / Other YAML-aware editors
+
+Add this comment at the top of your YAML file:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/flemzord/github-compliance/main/compliance-schema.json
+```
+
+Or for local development:
+
+```yaml
+# yaml-language-server: $schema=../path/to/compliance-schema.json
+```
+
+#### IntelliJ IDEA / WebStorm
+
+1. Go to **Settings → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings**
+2. Add a new mapping:
+   - Name: `GitHub Compliance`
+   - Schema file: Point to `compliance-schema.json`
+   - File pattern: `*compliance*.yml` or `*compliance*.yaml`
 
 Create a configuration file (for example `compliance.yml`):
 

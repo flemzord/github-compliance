@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../compliance-schema.json
+# The above line enables IDE autocompletion and validation
+# Works with VSCode, IntelliJ IDEA, and other editors with YAML Language Server
+
+version: 1
+organization: your-org-name
+
+defaults:
+  merge_methods:
+    allow_merge_commit: false
+    allow_squash_merge: true
+    allow_rebase_merge: false
+
+  branch_protection:
+    patterns:
+      - main
+      - release/*
+    enforce_admins: false
+    required_reviews:
+      dismiss_stale_reviews: true
+      require_code_owner_reviews: true
+      required_approving_review_count: 2
+      require_last_push_approval: false
+    required_status_checks:
+      strict: true
+      contexts:
+        - continuous-integration/travis-ci
+      auto_discover: false
+    restrictions:
+      users: []
+      teams:
+        - admin-team
+    allow_force_pushes: false
+    allow_deletions: false
+    required_conversation_resolution: true
+    lock_branch: false
+    allow_fork_syncing: false
+
+  security:
+    secret_scanning: enabled
+    secret_scanning_push_protection: enabled
+    dependabot_alerts: true
+    dependabot_updates: true
+    code_scanning_recommended: true
+
+  permissions:
+    remove_individual_collaborators: true
+    teams:
+      - team: admin-team
+        permission: admin
+      - team: dev-team
+        permission: write
+      - team: qa-team
+        permission: triage
+
+  archived_repos:
+    admin_team_only: true
+
+# Optional: Repository-specific overrides
+rules:
+  - match:
+      repositories:
+        - "*-prod"
+        - "*-production"
+      only_private: false
+    apply:
+      branch_protection:
+        enforce_admins: true
+        required_reviews:
+          required_approving_review_count: 3
