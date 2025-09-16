@@ -57,3 +57,4 @@ coverage-base
 # CLI build output
 dist-cli/
 dist/
+compliance-report.*
