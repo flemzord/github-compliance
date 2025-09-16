@@ -1,5 +1,7 @@
 import { throttling } from '@octokit/plugin-throttling';
 import { Octokit } from '@octokit/rest';
+import type { CacheKeyDescriptor, CacheLookupOptions, CacheNamespace } from '../cache';
+import { CacheManager } from '../cache';
 import type { OctokitRepository, RepositoryListOptions, VulnerabilityAlert } from '../checks/types';
 import * as logger from '../logging';
 import type {
@@ -13,10 +15,12 @@ import type {
 } from './types';
 
 const ThrottledOctokit = Octokit.plugin(throttling);
+const SELF_CACHE_OWNER = '__self__';
 
 export class GitHubClient {
   private octokit: Octokit;
   private owner?: string;
+  private cache?: CacheManager;
 
   constructor(options: GitHubClientOptions) {
     const octokitOptions = {
@@ -47,6 +51,41 @@ export class GitHubClient {
     }
 
     this.octokit = new ThrottledOctokit(octokitOptions);
+
+    if (options.cache instanceof CacheManager) {
+      this.cache = options.cache;
+    } else if (options.cache && typeof options.cache === 'object') {
+      this.cache = new CacheManager(options.cache);
+    }
+  }
+
+  private getCacheOwner(owner?: string): string {
+    if (owner) {
+      return owner;
+    }
+    if (this.owner) {
+      return this.owner;
+    }
+    return SELF_CACHE_OWNER;
+  }
+
+  private async fetchWithCache<T>(
+    descriptor: CacheKeyDescriptor,
+    loader: () => Promise<T>,
+    options?: CacheLookupOptions
+  ): Promise<T> {
+    if (!this.cache || !this.cache.enabled) {
+      return loader();
+    }
+
+    return this.cache.getOrLoad(descriptor, loader, options);
+  }
+
+  private invalidateCache(namespace: CacheNamespace, owner: string, repo?: string): void {
+    if (!this.cache || !this.cache.enabled) {
+      return;
+    }
+    this.cache.invalidateNamespace(namespace, owner, repo);
   }
 
   /**
@@ -60,8 +99,17 @@ export class GitHubClient {
    * Get current authenticated user info
    */
   async getCurrentUser() {
-    const response = await this.octokit.rest.users.getAuthenticated();
-    return response.data;
+    return this.fetchWithCache(
+      {
+        namespace: 'currentUser',
+        owner: this.getCacheOwner(),
+        identifier: 'authenticated',
+      },
+      async () => {
+        const response = await this.octokit.rest.users.getAuthenticated();
+        return response.data;
+      }
+    );
   }
 
   /**
@@ -73,89 +121,119 @@ export class GitHubClient {
     } & RepositoryListOptions
   ): Promise<Repository[]> {
     const owner = options?.owner || this.owner;
-    const repos: Repository[] = [];
+    const cacheDescriptor: CacheKeyDescriptor = {
+      namespace: 'repositoryList',
+      owner: this.getCacheOwner(options?.owner),
+      identifier: owner ? 'organization' : 'authenticated-user',
+      parameters: {
+        includeArchived: options?.includeArchived ?? false,
+        type: options?.type,
+        sort: options?.sort,
+        direction: options?.direction,
+      },
+    };
 
-    try {
-      if (owner) {
-        // Organization repositories
-        const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listForOrg, {
-          org: owner,
-          type:
-            (options?.type as 'all' | 'public' | 'private' | 'member' | 'forks' | 'sources') ||
-            'all',
-          sort: options?.sort || 'updated',
-          direction: options?.direction || 'desc',
-          per_page: 100,
-        });
+    return this.fetchWithCache(cacheDescriptor, async () => {
+      const repos: Repository[] = [];
 
-        for await (const { data } of iterator) {
-          for (const repo of data) {
-            if (!options?.includeArchived && (repo as OctokitRepository).archived) {
-              continue;
-            }
-            repos.push(repo as Repository);
-          }
-        }
-      } else {
-        // User repositories
-        const iterator = this.octokit.paginate.iterator(
-          this.octokit.rest.repos.listForAuthenticatedUser,
-          {
-            type: options?.type || 'owner',
+      try {
+        if (owner) {
+          const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listForOrg, {
+            org: owner,
+            type:
+              (options?.type as 'all' | 'public' | 'private' | 'member' | 'forks' | 'sources') ||
+              'all',
             sort: options?.sort || 'updated',
             direction: options?.direction || 'desc',
             per_page: 100,
-          }
-        );
+          });
 
-        for await (const { data } of iterator) {
-          for (const repo of data) {
-            if (!options?.includeArchived && (repo as OctokitRepository).archived) {
-              continue;
+          for await (const { data } of iterator) {
+            for (const repo of data) {
+              if (!options?.includeArchived && (repo as OctokitRepository).archived) {
+                continue;
+              }
+              repos.push(repo as Repository);
             }
-            repos.push(repo as Repository);
+          }
+        } else {
+          const iterator = this.octokit.paginate.iterator(
+            this.octokit.rest.repos.listForAuthenticatedUser,
+            {
+              type: options?.type || 'owner',
+              sort: options?.sort || 'updated',
+              direction: options?.direction || 'desc',
+              per_page: 100,
+            }
+          );
+
+          for await (const { data } of iterator) {
+            for (const repo of data) {
+              if (!options?.includeArchived && (repo as OctokitRepository).archived) {
+                continue;
+              }
+              repos.push(repo as Repository);
+            }
           }
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to list repositories: ${message}`);
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to list repositories: ${message}`);
-    }
 
-    return repos;
+      return repos;
+    });
   }
 
   /**
    * Get detailed repository information
    */
   async getRepository(owner: string, repo: string): Promise<Repository> {
-    try {
-      const response = await this.octokit.rest.repos.get({
-        owner,
-        repo,
-      });
-      return response.data as Repository;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to get repository ${owner}/${repo}: ${message}`);
-    }
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'repository',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: 'details',
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const response = await this.octokit.rest.repos.get({
+          owner,
+          repo,
+        });
+        return response.data as Repository;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to get repository ${owner}/${repo}: ${message}`);
+      }
+    });
   }
 
   /**
    * Get information about a specific branch
    */
   async getBranch(owner: string, repo: string, branch: string): Promise<{ name: string }> {
-    try {
-      const response = await this.octokit.rest.repos.getBranch({
-        owner,
-        repo,
-        branch,
-      });
-      return { name: response.data.name };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to get branch ${owner}/${repo}/${branch}: ${message}`);
-    }
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'branch',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: branch,
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const response = await this.octokit.rest.repos.getBranch({
+          owner,
+          repo,
+          branch,
+        });
+        return { name: response.data.name };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to get branch ${owner}/${repo}/${branch}: ${message}`);
+      }
+    });
   }
 
   /**
@@ -166,24 +244,35 @@ export class GitHubClient {
     repo: string,
     branch: string
   ): Promise<BranchProtectionRule | null> {
-    try {
-      const response = await this.octokit.rest.repos.getBranchProtection({
-        owner,
-        repo,
-        branch,
-      });
-      return response.data as unknown as BranchProtectionRule;
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        'status' in error &&
-        (error as { status: number }).status === 404
-      ) {
-        return null; // No protection rules
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'branchProtection',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: branch,
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const response = await this.octokit.rest.repos.getBranchProtection({
+          owner,
+          repo,
+          branch,
+        });
+        return response.data as unknown as BranchProtectionRule;
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          'status' in error &&
+          (error as { status: number }).status === 404
+        ) {
+          return null;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Failed to get branch protection for ${owner}/${repo}/${branch}: ${message}`
+        );
       }
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to get branch protection for ${owner}/${repo}/${branch}: ${message}`);
-    }
+    });
   }
 
   /**
@@ -218,6 +307,7 @@ export class GitHubClient {
           allow_fork_syncing: protection.allow_fork_syncing,
         }),
       });
+      this.invalidateCache('branchProtection', owner, repo);
       return response.data as unknown as BranchProtectionRule;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -232,47 +322,65 @@ export class GitHubClient {
    * Note: This returns only DIRECT collaborators, not users who have access via teams
    */
   async getCollaborators(owner: string, repo: string): Promise<Collaborator[]> {
-    try {
-      const collaborators: Collaborator[] = [];
-      const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listCollaborators, {
-        owner,
-        repo,
-        affiliation: 'direct' as const,
-        per_page: 100,
-      });
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'collaborators',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: 'direct',
+    };
 
-      for await (const { data } of iterator) {
-        collaborators.push(...(data as Collaborator[]));
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const collaborators: Collaborator[] = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listCollaborators, {
+          owner,
+          repo,
+          affiliation: 'direct' as const,
+          per_page: 100,
+        });
+
+        for await (const { data } of iterator) {
+          collaborators.push(...(data as Collaborator[]));
+        }
+
+        return collaborators;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to get collaborators for ${owner}/${repo}: ${message}`);
       }
-
-      return collaborators;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to get collaborators for ${owner}/${repo}: ${message}`);
-    }
+    });
   }
 
   /**
    * Get team permissions for a repository
    */
   async getTeamPermissions(owner: string, repo: string): Promise<TeamPermission[]> {
-    try {
-      const teams: TeamPermission[] = [];
-      const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listTeams, {
-        owner,
-        repo,
-        per_page: 100,
-      });
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'teamPermissions',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: 'teams',
+    };
 
-      for await (const { data } of iterator) {
-        teams.push(...(data as TeamPermission[]));
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const teams: TeamPermission[] = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listTeams, {
+          owner,
+          repo,
+          per_page: 100,
+        });
+
+        for await (const { data } of iterator) {
+          teams.push(...(data as TeamPermission[]));
+        }
+
+        return teams;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to get team permissions for ${owner}/${repo}: ${message}`);
       }
-
-      return teams;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to get team permissions for ${owner}/${repo}: ${message}`);
-    }
+    });
   }
 
   /**
@@ -289,6 +397,8 @@ export class GitHubClient {
         repo,
         ...settings,
       });
+      this.invalidateCache('repository', owner, repo);
+      this.invalidateCache('repositoryList', owner);
       return response.data as Repository;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -313,6 +423,7 @@ export class GitHubClient {
         repo,
         permission,
       });
+      this.invalidateCache('teamPermissions', owner, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to add team ${teamSlug} to ${owner}/${repo}: ${message}`);
@@ -330,6 +441,7 @@ export class GitHubClient {
         owner,
         repo,
       });
+      this.invalidateCache('teamPermissions', owner, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to remove team ${teamSlug} from ${owner}/${repo}: ${message}`);
@@ -352,6 +464,7 @@ export class GitHubClient {
         username,
         permission,
       });
+      this.invalidateCache('collaborators', owner, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to add collaborator ${username} to ${owner}/${repo}: ${message}`);
@@ -368,6 +481,7 @@ export class GitHubClient {
         repo,
         username,
       });
+      this.invalidateCache('collaborators', owner, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -380,64 +494,77 @@ export class GitHubClient {
    * Get security settings for a repository (best effort - some require specific scopes)
    */
   async getSecuritySettings(owner: string, repo: string): Promise<SecuritySettings> {
-    const settings: SecuritySettings = {};
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'securitySettings',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: 'settings',
+    };
 
-    try {
-      // Try to get secret scanning status
+    return this.fetchWithCache(descriptor, async () => {
+      const settings: SecuritySettings = {};
+
       try {
-        await this.octokit.rest.secretScanning.getAlert({
-          owner,
-          repo,
-          alert_number: 1,
-        });
-        settings.secret_scanning = { status: 'enabled' };
-      } catch {
-        // If we can't fetch an alert, assume it might be disabled or no alerts exist
-        settings.secret_scanning = { status: 'disabled' };
+        try {
+          await this.octokit.rest.secretScanning.getAlert({
+            owner,
+            repo,
+            alert_number: 1,
+          });
+          settings.secret_scanning = { status: 'enabled' };
+        } catch {
+          settings.secret_scanning = { status: 'disabled' };
+        }
+
+        try {
+          await this.octokit.rest.repos.checkVulnerabilityAlerts({
+            owner,
+            repo,
+          });
+          settings.dependabot_alerts = { enabled: true };
+        } catch {
+          settings.dependabot_alerts = { enabled: false };
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes('403')) {
+          logger.debug(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
+        }
       }
 
-      // These endpoints might require specific scopes
-      try {
-        await this.octokit.rest.repos.checkVulnerabilityAlerts({
-          owner,
-          repo,
-        });
-        settings.dependabot_alerts = { enabled: true };
-      } catch {
-        settings.dependabot_alerts = { enabled: false };
-      }
-    } catch (error) {
-      // Only log warnings for non-403 errors in verbose mode
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes('403')) {
-        logger.debug(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
-      }
-    }
-
-    return settings;
+      return settings;
+    });
   }
 
   /**
    * List Dependabot vulnerability alerts for a repository
    */
   async getVulnerabilityAlerts(owner: string, repo: string): Promise<VulnerabilityAlert[]> {
-    try {
-      const alerts = await this.octokit.paginate(this.octokit.rest.dependabot.listAlertsForRepo, {
-        owner,
-        repo,
-        per_page: 100,
-        state: 'all',
-      });
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'vulnerabilityAlerts',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: 'alerts',
+    };
 
-      return alerts as unknown as VulnerabilityAlert[];
-    } catch (error) {
-      // Silently handle 403 errors (permission denied) - common for repos without proper permissions
-      if (error instanceof Error && error.message.includes('403')) {
-        return [];
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const alerts = await this.octokit.paginate(this.octokit.rest.dependabot.listAlertsForRepo, {
+          owner,
+          repo,
+          per_page: 100,
+          state: 'all',
+        });
+
+        return alerts as unknown as VulnerabilityAlert[];
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('403')) {
+          return [];
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to list vulnerability alerts for ${owner}/${repo}: ${message}`);
       }
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to list vulnerability alerts for ${owner}/${repo}: ${message}`);
-    }
+    });
   }
 
   /**
@@ -450,6 +577,8 @@ export class GitHubClient {
       } else {
         await this.octokit.rest.repos.disableVulnerabilityAlerts({ owner, repo });
       }
+      this.invalidateCache('vulnerabilityAlerts', owner, repo);
+      this.invalidateCache('securitySettings', owner, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -474,6 +603,7 @@ export class GitHubClient {
           },
         },
       });
+      this.invalidateCache('securitySettings', owner, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -502,6 +632,7 @@ export class GitHubClient {
           },
         },
       });
+      this.invalidateCache('securitySettings', owner, repo);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(

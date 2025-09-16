@@ -70,6 +70,13 @@ rules:
 
 checks:
   enabled: ["merge-methods", "team-permissions", "branch-protection"]
+
+cache:
+  enabled: true
+  storage: memory
+  ttl:
+    default: 600
+    repository: 1800
 `;
 
 describe('Config validation', () => {
@@ -109,6 +116,7 @@ describe('Config validation', () => {
       expect(config.defaults.branch_protection?.patterns).toEqual(['main', 'release/v*']);
       expect(config.rules).toHaveLength(2);
       expect(config.checks?.enabled).toContain('merge-methods');
+      expect(config.cache?.enabled).toBe(true);
     });
 
     it('should reject invalid YAML syntax', async () => {
@@ -306,6 +314,40 @@ defaults:
         // Restore original
         require('js-yaml').load = originalLoad;
       }
+    });
+
+    it('should generate cache warnings for missing filesystem storage path', async () => {
+      const misconfiguredCache = `
+version: 1
+defaults: {}
+cache:
+  enabled: true
+  storage: filesystem
+`;
+
+      const config = await validateFromString(misconfiguredCache);
+      const warnings = validateDefaults(config);
+
+      expect(warnings).toContain(
+        'Cache storage is set to filesystem but no storagePath is provided'
+      );
+    });
+
+    it('should warn when redis cache storage is configured', async () => {
+      const redisCacheConfig = `
+version: 1
+defaults: {}
+cache:
+  enabled: true
+  storage: redis
+`;
+
+      const config = await validateFromString(redisCacheConfig);
+      const warnings = validateDefaults(config);
+
+      expect(warnings).toContain(
+        'Redis cache storage is not currently supported; memory storage will be used'
+      );
     });
 
     it('should handle ZodError with empty path', async () => {

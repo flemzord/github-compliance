@@ -4,6 +4,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import chalk from 'chalk';
 import { Command } from 'commander';
+import { CacheManager } from './cache';
 import type { ComplianceConfig } from './config/types';
 import { validateFromString } from './config/validator';
 import { GitHubClient } from './github/client';
@@ -104,6 +105,9 @@ async function runCommand(options: RunOptions): Promise<void> {
     if (!(logger instanceof ProgressLogger)) {
       logger.info('🔗 Connecting to GitHub...');
     }
+    const cacheConfig = (config as ComplianceConfig).cache;
+    const cacheManager = cacheConfig?.enabled ? new CacheManager(cacheConfig) : undefined;
+
     const client = new GitHubClient({
       token: token,
       throttle: {
@@ -111,6 +115,7 @@ async function runCommand(options: RunOptions): Promise<void> {
         retries: 3,
         retryDelay: 1000,
       },
+      ...(cacheManager && { cache: cacheManager }),
     });
     client.setOwner(organization);
 

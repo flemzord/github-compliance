@@ -157,6 +157,7 @@ function getFieldContext(path: string): string {
     organization: 'The GitHub organization name to apply compliance rules to',
     rules: 'Repository-specific overrides based on patterns or criteria',
     checks: 'List of compliance checks to run (deprecated - checks are determined by defaults)',
+    cache: 'Configures caching for GitHub API responses to reduce rate limit usage',
   };
 
   // Check for exact matches first
@@ -210,6 +211,15 @@ export function validateDefaults(config: ComplianceConfig): string[] {
     const adminTeams = config.defaults.permissions.teams.filter((t) => t.permission === 'admin');
     if (adminTeams.length === 0) {
       warnings.push('No admin teams configured - ensure at least one team has admin access');
+    }
+  }
+
+  if (config.cache?.enabled) {
+    if (config.cache.storage === 'filesystem' && !config.cache.storagePath) {
+      warnings.push('Cache storage is set to filesystem but no storagePath is provided');
+    }
+    if (config.cache.storage === 'redis') {
+      warnings.push('Redis cache storage is not currently supported; memory storage will be used');
     }
   }
 
