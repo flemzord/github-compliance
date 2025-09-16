@@ -186,6 +186,7 @@ Manages repository access and team permissions.
 |-------|------|-------------|
 | `remove_individual_collaborators` | `boolean` | Remove direct user access (enforce team-based access) |
 | `teams` | `array` | List of teams and their permissions |
+| `users` | `array` | Managed direct collaborators and their permissions |
 
 #### Team Configuration
 
@@ -218,7 +219,14 @@ defaults:
         permission: maintain
       - team: "security"
         permission: admin
+    users:
+      - user: "release-manager"
+        permission: admin
+      - user: "ci-service-account"
+        permission: read
 ```
+
+Add the `users` section when specific direct collaborators must keep access. When `remove_individual_collaborators` is `true`, only the listed users will be preserved.
 
 ### Archived Repositories
 
@@ -407,6 +415,9 @@ defaults:
       - team: "devops"
         permission: maintain
       - team: "admins"
+        permission: admin
+    users:
+      - user: "release-manager"
         permission: admin
 
   archived_repos:

@@ -2,11 +2,12 @@
 
 import { existsSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import chalk from 'chalk';
 import { Command } from 'commander';
 import type { ComplianceConfig } from './config/types';
 import { validateFromString } from './config/validator';
 import { GitHubClient } from './github/client';
-import { ConsoleLogger, ProgressLogger, setLogger } from './logging';
+import { box, ConsoleLogger, header, ProgressLogger, setLogger } from './logging';
 import { JsonReporter, MarkdownReporter } from './reporting';
 import { ComplianceRunner } from './runner';
 import type { RunnerOptions } from './runner/types';
@@ -212,6 +213,7 @@ async function validateCommand(options: ValidateOptions): Promise<void> {
   const logger = new ConsoleLogger({
     verbose: options.verbose || false,
     quiet: options.quiet || false,
+    useColors: true,
   });
   setLogger(logger);
 
@@ -219,11 +221,14 @@ async function validateCommand(options: ValidateOptions): Promise<void> {
     // Validate configuration file exists
     const configPath = resolve(process.cwd(), options.config);
     if (!existsSync(configPath)) {
-      logger.error(`❌ Configuration file not found: ${configPath}`);
+      logger.error(`Configuration file not found: ${configPath}`);
       process.exit(1);
     }
 
-    logger.info('🔍 Validating configuration file...\n');
+    // Display validation header
+    console.log();
+    header('✨ Configuration Validation');
+    console.log();
 
     // Try to load and validate configuration
     try {
@@ -284,61 +289,99 @@ async function validateCommand(options: ValidateOptions): Promise<void> {
         logger.info(''); // Empty line
       }
 
-      logger.success('✅ Configuration is valid!');
+      // Display success box
+      console.log();
+      box('✅ Valid Configuration', 'success');
+      console.log();
 
-      // Show basic info even in non-verbose mode
-      if (!options.verbose && !options.quiet) {
+      // Show configuration details with better formatting
+      if (!options.quiet) {
         const defaults = (config as ComplianceConfig).defaults;
         const checkCount = defaults ? Object.keys(defaults).length : 0;
         const rules = (config as ComplianceConfig).rules;
         const ruleCount = rules ? rules.length : 0;
+        const org = (config as ComplianceConfig).organization || 'Not specified';
 
-        logger.info(`  Organization: ${(config as ComplianceConfig).organization}`);
-        logger.info(`  Checks configured: ${checkCount}`);
-        logger.info(`  Repository rules: ${ruleCount}`);
+        console.log(chalk.cyan('  📋 Configuration Details:'));
+        console.log(chalk.gray('  ├─ ') + chalk.bold('Organization: ') + chalk.green(org));
+        console.log(
+          chalk.gray('  ├─ ') + chalk.bold('Checks: ') + chalk.yellow(`${checkCount} configured`)
+        );
+        console.log(
+          chalk.gray('  └─ ') + chalk.bold('Rules: ') + chalk.yellow(`${ruleCount} defined`)
+        );
       }
 
       process.exit(0);
     } catch (validationError) {
       // Check if it's a ConfigValidationError with detailed issues
-      const isConfigError = validationError instanceof Error &&
-                           'issues' in validationError &&
-                           Array.isArray((validationError as any).issues);
+      const isConfigError =
+        validationError instanceof Error &&
+        'issues' in validationError &&
+        // biome-ignore lint/suspicious/noExplicitAny: Type narrowing for error handling
+        Array.isArray((validationError as any).issues);
 
       if (isConfigError) {
+        // biome-ignore lint/suspicious/noExplicitAny: Type narrowing for error handling
         const configError = validationError as any;
-        logger.error('❌ Configuration validation failed:\n');
 
-        // Display each validation issue
+        // Display error box
+        console.log();
+        box('⚠️  Configuration Validation Failed', 'error');
+        console.log();
+
+        // Display validation errors with better formatting
+        console.log(chalk.red.bold('  ❌ Validation Errors:\n'));
         for (const issue of configError.issues) {
-          logger.error(`  • ${issue}`);
+          const lines = issue.split('\n');
+          const mainError = lines[0];
+          const helpLines = lines.slice(1);
+
+          console.log(chalk.red('  └─ ') + chalk.bold(mainError));
+          for (const helpLine of helpLines) {
+            console.log(chalk.gray('     ') + chalk.yellow(helpLine));
+          }
+          console.log();
         }
 
-        logger.info('\n💡 Tips for fixing validation errors:');
-        logger.info('  • Check the YAML syntax is correct');
-        logger.info('  • Ensure all required fields are present');
-        logger.info('  • Verify field types match the schema (strings, booleans, numbers)');
-        logger.info('  • Check enum values are from the allowed list');
-        logger.info('  • Review the example configuration in the documentation');
+        // Display help tips with better formatting
+        console.log(chalk.cyan.bold('  💡 Tips for fixing errors:\n'));
+        const tips = [
+          'Check the YAML syntax is correct',
+          'Ensure all required fields are present',
+          'Verify field types match the schema',
+          'Check enum values are from the allowed list',
+          'Review the example configuration',
+        ];
+
+        tips.forEach((tip, index) => {
+          const prefix = index === tips.length - 1 ? '  └─ ' : '  ├─ ';
+          console.log(chalk.gray(prefix) + tip);
+        });
 
         if (options.verbose) {
-          logger.info('\n📖 Schema documentation: https://github.com/flemzord/github-compliance');
+          console.log(chalk.gray('\n  📖 Schema: https://github.com/flemzord/github-compliance'));
         }
       } else if (validationError instanceof Error) {
-        logger.error(`❌ Validation failed: ${validationError.message}`);
+        console.log();
+        box('⚠️  Validation Failed', 'error');
+        console.log();
+        logger.error(`${validationError.message}`);
 
         if (options.verbose && validationError.stack) {
           console.error('\nStack trace:', validationError.stack);
         }
       } else {
-        logger.error('❌ An unknown error occurred during validation');
+        console.log();
+        logger.error('An unknown error occurred during validation');
       }
 
       process.exit(1);
     }
   } catch (error) {
+    console.log();
     if (error instanceof Error) {
-      logger.error(`❌ Error: ${error.message}`);
+      logger.error(`Error: ${error.message}`);
       if (options.verbose && error.stack) {
         console.error(error.stack);
       }

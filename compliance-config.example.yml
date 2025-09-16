@@ -49,6 +49,9 @@ defaults:
         permission: "admin"
       - team: "developers"
         permission: "write"
+    users:
+      - user: "release-manager"
+        permission: "admin"
 
   # Archived repository settings
   archived_repos:

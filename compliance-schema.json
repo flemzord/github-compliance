@@ -24,7 +24,7 @@
           "$ref": "#/definitions/merge_methods"
         },
         "branch_protection": {
-          "$ref": "#/definitions/branch_protection"
+          "$ref": "#/definitions/branch_protection_defaults"
         },
         "security": {
           "$ref": "#/definitions/security"
@@ -128,9 +128,59 @@
       },
       "additionalProperties": false
     },
+    "branch_protection_defaults": {
+      "type": "object",
+      "description": "Configures branch protection rules for repositories (defaults section - most fields optional)",
+      "required": ["patterns"],
+      "properties": {
+        "patterns": {
+          "type": "array",
+          "description": "Branch name patterns to protect (e.g., 'main', 'release/*')",
+          "items": {
+            "type": "string"
+          },
+          "examples": [["main", "release/*", "develop"]]
+        },
+        "enforce_admins": {
+          "type": "boolean",
+          "description": "Enforce all configured restrictions for administrators"
+        },
+        "required_reviews": {
+          "$ref": "#/definitions/required_reviews"
+        },
+        "required_status_checks": {
+          "$ref": "#/definitions/required_status_checks"
+        },
+        "restrictions": {
+          "oneOf": [{ "$ref": "#/definitions/restrictions" }, { "type": "null" }],
+          "description": "Restrict who can push to protected branches (optional - leave out or set to null if not needed)"
+        },
+        "allow_force_pushes": {
+          "type": "boolean",
+          "description": "Permit force pushes for all users with push access"
+        },
+        "allow_deletions": {
+          "type": "boolean",
+          "description": "Allow users with push access to delete protected branches"
+        },
+        "required_conversation_resolution": {
+          "type": "boolean",
+          "description": "Require all conversations to be resolved before merging"
+        },
+        "lock_branch": {
+          "type": "boolean",
+          "description": "Lock the branch (read-only)"
+        },
+        "allow_fork_syncing": {
+          "type": "boolean",
+          "description": "Allow fork syncing"
+        }
+      },
+      "additionalProperties": false
+    },
     "branch_protection": {
       "type": "object",
-      "description": "Configures branch protection rules for repositories",
+      "description": "Configures branch protection rules for repositories (full schema for rules)",
       "required": [
         "patterns",
         "enforce_admins",
@@ -208,7 +258,7 @@
           "$ref": "#/definitions/required_status_checks_partial"
         },
         "restrictions": {
-          "$ref": "#/definitions/restrictions_partial"
+          "oneOf": [{ "$ref": "#/definitions/restrictions_partial" }, { "type": "null" }]
         },
         "allow_force_pushes": {
           "type": "boolean"
@@ -441,6 +491,13 @@
           "items": {
             "$ref": "#/definitions/team_permission"
           }
+        },
+        "users": {
+          "type": "array",
+          "description": "Direct collaborator permissions to enforce",
+          "items": {
+            "$ref": "#/definitions/user_permission"
+          }
         }
       },
       "additionalProperties": false
@@ -456,6 +513,12 @@
           "items": {
             "$ref": "#/definitions/team_permission"
           }
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/user_permission"
+          }
         }
       },
       "additionalProperties": false
@@ -467,6 +530,22 @@
         "team": {
           "type": "string",
           "description": "GitHub team slug"
+        },
+        "permission": {
+          "type": "string",
+          "enum": ["read", "triage", "write", "maintain", "admin", "push"],
+          "description": "Permission level: read < triage < write/push < maintain < admin"
+        }
+      },
+      "additionalProperties": false
+    },
+    "user_permission": {
+      "type": "object",
+      "required": ["user", "permission"],
+      "properties": {
+        "user": {
+          "type": "string",
+          "description": "GitHub username to manage"
         },
         "permission": {
           "type": "string",

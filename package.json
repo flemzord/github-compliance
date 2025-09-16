@@ -16,7 +16,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "npm run lint:biome && npm run lint:knip && npm run lint:types",
-    "lint:fix": "npm run lint:biome:fix && npm run lint:knip:fix && npm run lint:types",
+    "lint:fix": "npm run lint:knip:fix && npm run lint:biome:fix && npm run lint:types",
     "lint:biome": "biome check .",
     "lint:biome:fix": "biome check --write .",
     "lint:knip": "knip",

@@ -31,6 +31,8 @@ export class TeamPermissionsCheck extends BaseCheck {
         actions_needed: [],
       };
 
+      const expectedUsers = Array.isArray(config.users) ? config.users : [];
+
       // Get current teams and collaborators
       const [currentTeams, currentCollaborators] = await Promise.all([
         context.client.getTeamPermissions(owner, repo),
@@ -42,10 +44,17 @@ export class TeamPermissionsCheck extends BaseCheck {
         (details.current as Record<string, unknown>).collaborators = currentCollaborators;
       }
 
+      const collaboratorsByLogin = new Map(
+        currentCollaborators.map(
+          (collaborator) => [collaborator.login.toLowerCase(), collaborator] as const
+        )
+      );
+
       // Check team permissions
       if (config.teams) {
         for (const expectedTeam of config.teams) {
           const currentTeam = currentTeams.find((t) => t.slug === expectedTeam.team);
+          const expectedPermission = this.normalizePermissionLevel(expectedTeam.permission);
 
           if (!currentTeam) {
             issues.push(
@@ -58,18 +67,22 @@ export class TeamPermissionsCheck extends BaseCheck {
                 permission: expectedTeam.permission,
               });
             }
-          } else if (currentTeam.permission !== expectedTeam.permission) {
-            issues.push(
-              `Team '${expectedTeam.team}' should have '${expectedTeam.permission}' permission ` +
-                `but has '${currentTeam.permission}'`
-            );
-            if (details.actions_needed) {
-              details.actions_needed.push({
-                action: 'update_team',
-                team: expectedTeam.team,
-                current_permission: currentTeam.permission,
-                new_permission: expectedTeam.permission,
-              });
+          } else {
+            const currentPermission = this.normalizePermissionLevel(currentTeam.permission);
+
+            if (currentPermission !== expectedPermission) {
+              issues.push(
+                `Team '${expectedTeam.team}' should have '${expectedTeam.permission}' permission ` +
+                  `but has '${currentTeam.permission}'`
+              );
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_team',
+                  team: expectedTeam.team,
+                  current_permission: currentTeam.permission,
+                  new_permission: expectedTeam.permission,
+                });
+              }
             }
           }
         }
@@ -93,17 +106,61 @@ export class TeamPermissionsCheck extends BaseCheck {
         }
       }
 
+      if (expectedUsers.length > 0) {
+        for (const expectedUser of expectedUsers) {
+          const loginKey = expectedUser.user.toLowerCase();
+          const collaborator = collaboratorsByLogin.get(loginKey);
+          const expectedPermission = this.normalizePermissionLevel(expectedUser.permission);
+
+          if (!collaborator) {
+            issues.push(
+              `User '${expectedUser.user}' should have '${expectedUser.permission}' permission but is not a collaborator`
+            );
+            if (details.actions_needed) {
+              details.actions_needed.push({
+                action: 'add_collaborator',
+                username: expectedUser.user,
+                permission: expectedUser.permission,
+              });
+            }
+          } else {
+            const collaboratorPermission = this.getCollaboratorPermissionLevel(
+              collaborator.permissions
+            );
+            const currentPermission = this.normalizePermissionLevel(collaboratorPermission);
+
+            if (currentPermission !== expectedPermission) {
+              issues.push(
+                `User '${expectedUser.user}' should have '${expectedUser.permission}' permission but has '${collaboratorPermission}'`
+              );
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_collaborator_permission',
+                  username: expectedUser.user,
+                  current_permission: collaboratorPermission,
+                  permission: expectedUser.permission,
+                });
+              }
+            }
+          }
+        }
+      }
+
       // Check individual collaborators
       if (config.remove_individual_collaborators) {
+        const allowlistedUsers = new Set(expectedUsers.map((user) => user.user.toLowerCase()));
         const individualCollaborators = currentCollaborators.filter((c) => c.type === 'User');
+        const collaboratorsToRemove = individualCollaborators.filter(
+          (collaborator) => !allowlistedUsers.has(collaborator.login.toLowerCase())
+        );
 
-        if (individualCollaborators.length > 0) {
-          const collaboratorLogins = individualCollaborators.map((c) => c.login);
+        if (collaboratorsToRemove.length > 0) {
+          const collaboratorLogins = collaboratorsToRemove.map((c) => c.login);
           issues.push(
             `Individual collaborators should be removed: ${collaboratorLogins.join(', ')}`
           );
 
-          for (const collab of individualCollaborators) {
+          for (const collab of collaboratorsToRemove) {
             if (details.actions_needed) {
               details.actions_needed.push({
                 action: 'remove_collaborator',
@@ -198,6 +255,28 @@ export class TeamPermissionsCheck extends BaseCheck {
               );
               break;
 
+            case 'add_collaborator':
+            case 'update_collaborator_permission':
+              await context.client.addCollaborator(
+                owner,
+                repo,
+                action.username as string,
+                this.mapPermissionLevel((action.permission || action.new_permission) as string)
+              );
+              appliedActions.push({
+                action: action.action,
+                details: {
+                  username: action.username,
+                  permission: action.permission || action.new_permission,
+                },
+              });
+              logger.info(
+                `✅ ${
+                  action.action === 'add_collaborator' ? 'Added' : 'Updated'
+                } collaborator ${action.username} for ${repository.full_name}`
+              );
+              break;
+
             case 'remove_collaborator':
               await context.client.removeCollaborator(owner, repo, action.username as string);
               appliedActions.push({
@@ -238,6 +317,25 @@ export class TeamPermissionsCheck extends BaseCheck {
     }
   }
 
+  private normalizePermissionLevel(
+    permission: string
+  ): 'read' | 'triage' | 'write' | 'maintain' | 'admin' {
+    switch (permission) {
+      case 'pull':
+        return 'read';
+      case 'push':
+        return 'write';
+      case 'read':
+      case 'triage':
+      case 'write':
+      case 'maintain':
+      case 'admin':
+        return permission as 'read' | 'triage' | 'write' | 'maintain' | 'admin';
+      default:
+        return 'read';
+    }
+  }
+
   private getCollaboratorPermissionLevel(permissions: CollaboratorPermissions): string {
     if (permissions.admin) return 'admin';
     if (permissions.maintain) return 'maintain';
@@ -251,8 +349,10 @@ export class TeamPermissionsCheck extends BaseCheck {
   ): 'pull' | 'triage' | 'push' | 'maintain' | 'admin' {
     switch (permission) {
       case 'read':
+      case 'pull':
         return 'pull';
       case 'write':
+      case 'push':
         return 'push';
       case 'admin':
       case 'maintain':

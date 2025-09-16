@@ -337,6 +337,28 @@ export class GitHubClient {
   }
 
   /**
+   * Add or update collaborator permissions for repository
+   */
+  async addCollaborator(
+    owner: string,
+    repo: string,
+    username: string,
+    permission: 'pull' | 'triage' | 'push' | 'maintain' | 'admin'
+  ): Promise<void> {
+    try {
+      await this.octokit.rest.repos.addCollaborator({
+        owner,
+        repo,
+        username,
+        permission,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to add collaborator ${username} to ${owner}/${repo}: ${message}`);
+    }
+  }
+
+  /**
    * Remove collaborator from repository
    */
   async removeCollaborator(owner: string, repo: string, username: string): Promise<void> {

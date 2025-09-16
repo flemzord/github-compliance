@@ -31,6 +31,8 @@ const mockLogger = {
   debug: jest.fn(),
   showHeader: jest.fn(),
   displaySummary: jest.fn(),
+  header: jest.fn(),
+  box: jest.fn(),
   verbose: false,
   quiet: false,
 };
@@ -39,6 +41,8 @@ jest.mock('../logging', () => ({
   setLogger: jest.fn(),
   ConsoleLogger: jest.fn(() => mockLogger),
   ProgressLogger: jest.fn(() => mockLogger),
+  header: jest.fn(),
+  box: jest.fn(),
 }));
 
 import { validateFromString } from '../config/validator';
@@ -272,7 +276,7 @@ defaults:
         })
       ).rejects.toThrow('process.exit');
 
-      expect(mockLogger.success).toHaveBeenCalledWith('✅ Configuration is valid!');
+      expect(logging.box).toHaveBeenCalledWith('✅ Valid Configuration', 'success');
     });
 
     it('should show detailed validation in verbose mode', async () => {
@@ -284,7 +288,7 @@ defaults:
       ).rejects.toThrow('process.exit');
 
       expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Configuration Summary')
+        expect.stringContaining('📋 Configuration Summary:')
       );
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining('Organization: test-org')
@@ -305,27 +309,21 @@ defaults:
 
     it('should fail if organization is missing', async () => {
       const invalidConfig = `
+version: 1
 defaults:
-  checks:
-    merge-methods:
-      allow_merge_commit: false
+  merge_methods:
+    allow_merge_commit: false
+    allow_squash_merge: true
+    allow_rebase_merge: false
 `;
       const invalidConfigPath = resolve(__dirname, 'invalid-config.yml');
       writeFileSync(invalidConfigPath, invalidConfig);
 
-      // Mock validateFromString to return config without organization
-      (validateFromString as jest.Mock).mockResolvedValueOnce({
-        config: {
-          defaults: {
-            checks: {
-              'merge-methods': {
-                allow_merge_commit: false,
-              },
-            },
-          },
-        },
-        warnings: [],
-      });
+      // Mock validateFromString to throw validation error for missing organization
+      const validationError = new Error('Configuration validation failed');
+      // biome-ignore lint/suspicious/noExplicitAny: Test mock setup
+      (validationError as any).issues = ['organization: Missing required field'];
+      (validateFromString as jest.Mock).mockRejectedValueOnce(validationError);
 
       await expect(
         validateCommand({
@@ -333,24 +331,24 @@ defaults:
         })
       ).rejects.toThrow('process.exit');
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Missing required field: organization')
-      );
+      expect(logging.box).toHaveBeenCalledWith('⚠️  Configuration Validation Failed', 'error');
 
       unlinkSync(invalidConfigPath);
     });
 
-    it('should fail if no checks are configured', async () => {
-      const invalidConfig = `
+    it('should succeed with empty defaults', async () => {
+      const minimalConfig = `
+version: 1
 organization: test-org
 defaults: {}
 `;
-      const invalidConfigPath = resolve(__dirname, 'no-checks-config.yml');
-      writeFileSync(invalidConfigPath, invalidConfig);
+      const minimalConfigPath = resolve(__dirname, 'minimal-config.yml');
+      writeFileSync(minimalConfigPath, minimalConfig);
 
       // Mock validateFromString to return config without checks
       (validateFromString as jest.Mock).mockResolvedValueOnce({
         config: {
+          version: 1,
           organization: 'test-org',
           defaults: {},
         },
@@ -359,15 +357,13 @@ defaults: {}
 
       await expect(
         validateCommand({
-          config: invalidConfigPath,
+          config: minimalConfigPath,
         })
       ).rejects.toThrow('process.exit');
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining('No checks configured')
-      );
+      expect(logging.box).toHaveBeenCalledWith('✅ Valid Configuration', 'success');
 
-      unlinkSync(invalidConfigPath);
+      unlinkSync(minimalConfigPath);
     });
 
     it('should handle quiet mode', async () => {
@@ -381,6 +377,7 @@ defaults: {}
       expect(logging.ConsoleLogger).toHaveBeenCalledWith({
         verbose: false,
         quiet: true,
+        useColors: true,
       });
     });
   });

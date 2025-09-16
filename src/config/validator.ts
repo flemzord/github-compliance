@@ -154,9 +154,9 @@ function getFieldContext(path: string): string {
     'defaults.security': 'Manages security features like secret scanning and vulnerability alerts',
     'defaults.permissions': 'Defines team access levels and collaborator management',
     'defaults.archived_repos': 'Controls access and management of archived repositories',
-    'organization': 'The GitHub organization name to apply compliance rules to',
-    'rules': 'Repository-specific overrides based on patterns or criteria',
-    'checks': 'List of compliance checks to run (deprecated - checks are determined by defaults)',
+    organization: 'The GitHub organization name to apply compliance rules to',
+    rules: 'Repository-specific overrides based on patterns or criteria',
+    checks: 'List of compliance checks to run (deprecated - checks are determined by defaults)',
   };
 
   // Check for exact matches first
@@ -195,6 +195,7 @@ export function validateDefaults(config: ComplianceConfig): string[] {
     }
 
     if (
+      bp.required_reviews &&
       bp.required_reviews.required_approving_review_count === 0 &&
       !bp.required_reviews.require_code_owner_reviews
     ) {

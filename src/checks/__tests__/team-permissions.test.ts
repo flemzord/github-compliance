@@ -20,6 +20,7 @@ const mockClient: Partial<GitHubClient> = {
   getTeamPermissions: jest.fn(),
   getCollaborators: jest.fn(),
   addTeamToRepository: jest.fn(),
+  addCollaborator: jest.fn(),
   removeCollaborator: jest.fn(),
 };
 
@@ -363,6 +364,100 @@ describe('TeamPermissionsCheck', () => {
       });
     });
 
+    describe('user permissions validation', () => {
+      it('should detect missing required collaborator', async () => {
+        const configWithUsers = {
+          ...mockConfig,
+          defaults: {
+            permissions: {
+              remove_individual_collaborators: false,
+              teams: mockConfig.defaults.permissions?.teams || [],
+              users: [{ user: 'special-user', permission: 'admin' }],
+            },
+          },
+        };
+        const contextWithUsers = { ...context, config: configWithUsers };
+
+        const result = await check.check(contextWithUsers);
+
+        expect(result.compliant).toBe(false);
+        expect(result.message).toContain(
+          "User 'special-user' should have 'admin' permission but is not a collaborator"
+        );
+        expect(result.details?.actions_needed).toContainEqual({
+          action: 'add_collaborator',
+          username: 'special-user',
+          permission: 'admin',
+        });
+      });
+
+      it('should detect incorrect collaborator permission', async () => {
+        const collaboratorsWithUser = [
+          ...mockCollaborators,
+          {
+            id: 99,
+            login: 'special-user',
+            type: 'User' as const,
+            permissions: {
+              admin: false,
+              maintain: false,
+              push: true,
+              triage: false,
+              pull: true,
+            },
+          },
+        ];
+        (mockClient.getCollaborators as jest.Mock).mockResolvedValue(collaboratorsWithUser);
+
+        const configWithUsers = {
+          ...mockConfig,
+          defaults: {
+            permissions: {
+              remove_individual_collaborators: false,
+              teams: mockConfig.defaults.permissions?.teams || [],
+              users: [{ user: 'special-user', permission: 'admin' }],
+            },
+          },
+        };
+        const contextWithUsers = { ...context, config: configWithUsers };
+
+        const result = await check.check(contextWithUsers);
+
+        expect(result.compliant).toBe(false);
+        expect(result.message).toContain(
+          "User 'special-user' should have 'admin' permission but has 'write'"
+        );
+        expect(result.details?.actions_needed).toContainEqual({
+          action: 'update_collaborator_permission',
+          username: 'special-user',
+          current_permission: 'write',
+          permission: 'admin',
+        });
+      });
+
+      it('should not remove allowlisted collaborators when removal is enforced', async () => {
+        const configWithAllowlistedUser = {
+          ...mockConfig,
+          defaults: {
+            permissions: {
+              remove_individual_collaborators: true,
+              teams: mockConfig.defaults.permissions?.teams || [],
+              users: [{ user: 'admin-user', permission: 'admin' }],
+            },
+          },
+        };
+        const contextWithAllowlist = { ...context, config: configWithAllowlistedUser };
+
+        const result = await check.check(contextWithAllowlist);
+
+        expect(result.message).toContain('Individual collaborators should be removed: user1');
+        expect(result.message).not.toContain('admin-user');
+        expect(result.details?.actions_needed).not.toContainEqual(
+          expect.objectContaining({ username: 'admin-user' })
+        );
+      });
+    });
+
     describe('permission level mapping', () => {
       it('should correctly identify admin permission level', () => {
         const adminCollaborator = {
@@ -466,6 +561,12 @@ describe('TeamPermissionsCheck', () => {
         );
       });
 
+      it('should map push to push', () => {
+        expect((check as unknown as TestableTeamPermissionsCheck).mapPermissionLevel('push')).toBe(
+          'push'
+        );
+      });
+
       it('should map admin to admin', () => {
         expect((check as unknown as TestableTeamPermissionsCheck).mapPermissionLevel('admin')).toBe(
           'admin'
@@ -557,6 +658,7 @@ describe('TeamPermissionsCheck', () => {
       (mockClient.getTeamPermissions as jest.Mock).mockResolvedValue(mockTeamPermissions);
       (mockClient.getCollaborators as jest.Mock).mockResolvedValue(mockCollaborators);
       (mockClient.addTeamToRepository as jest.Mock).mockResolvedValue({});
+      (mockClient.addCollaborator as jest.Mock).mockResolvedValue({});
       (mockClient.removeCollaborator as jest.Mock).mockResolvedValue({});
     });
 
@@ -686,6 +788,65 @@ describe('TeamPermissionsCheck', () => {
       expect(result.fixed).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
         '✅ Removed collaborator individual-user from owner/test-repo'
+      );
+    });
+
+    it('should add collaborator when required', async () => {
+      jest.spyOn(check, 'check').mockResolvedValue({
+        compliant: false,
+        message: 'Not compliant',
+        details: {
+          actions_needed: [
+            {
+              action: 'add_collaborator',
+              username: 'special-user',
+              permission: 'admin',
+            },
+          ],
+        },
+      });
+
+      const result = await check.fix(context);
+
+      expect(mockClient.addCollaborator).toHaveBeenCalledWith(
+        'owner',
+        'test-repo',
+        'special-user',
+        'admin'
+      );
+      expect(result.fixed).toBe(true);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        '✅ Added collaborator special-user for owner/test-repo'
+      );
+    });
+
+    it('should update collaborator permission', async () => {
+      jest.spyOn(check, 'check').mockResolvedValue({
+        compliant: false,
+        message: 'Not compliant',
+        details: {
+          actions_needed: [
+            {
+              action: 'update_collaborator_permission',
+              username: 'special-user',
+              permission: 'write',
+              current_permission: 'read',
+            },
+          ],
+        },
+      });
+
+      const result = await check.fix(context);
+
+      expect(mockClient.addCollaborator).toHaveBeenCalledWith(
+        'owner',
+        'test-repo',
+        'special-user',
+        'push'
+      );
+      expect(result.fixed).toBe(true);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        '✅ Updated collaborator special-user for owner/test-repo'
       );
     });
 

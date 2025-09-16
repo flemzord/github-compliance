@@ -40,7 +40,21 @@ const BranchProtectionSchema = z.object({
 const PartialBranchProtectionSchema = BranchProtectionSchema.partial().extend({
   required_reviews: RequiredReviewsSchema.partial().optional(),
   required_status_checks: RequiredStatusChecksSchema.partial().optional(),
-  restrictions: RestrictionsSchema.partial().optional(),
+  restrictions: RestrictionsSchema.partial().nullable().optional(),
+});
+
+// Schema for branch protection in defaults - with optional fields for flexibility
+const BranchProtectionDefaultsSchema = z.object({
+  patterns: z.array(z.string()), // Required - without patterns, protection is meaningless
+  enforce_admins: z.boolean().optional(),
+  required_reviews: RequiredReviewsSchema.optional(),
+  required_status_checks: RequiredStatusChecksSchema.optional(),
+  restrictions: RestrictionsSchema.nullable().optional(), // Optional - not everyone needs push restrictions, accepts null
+  allow_force_pushes: z.boolean().optional(),
+  allow_deletions: z.boolean().optional(),
+  required_conversation_resolution: z.boolean().optional(),
+  lock_branch: z.boolean().optional(),
+  allow_fork_syncing: z.boolean().optional(),
 });
 
 const SecuritySchema = z.object({
@@ -56,9 +70,15 @@ const ConfigTeamPermissionSchema = z.object({
   permission: z.enum(['read', 'triage', 'write', 'maintain', 'admin', 'push']),
 });
 
+const ConfigUserPermissionSchema = z.object({
+  user: z.string(),
+  permission: z.enum(['read', 'triage', 'write', 'maintain', 'admin', 'push']),
+});
+
 const PermissionsSchema = z.object({
   remove_individual_collaborators: z.boolean(),
   teams: z.array(ConfigTeamPermissionSchema),
+  users: z.array(ConfigUserPermissionSchema).optional(),
 });
 
 const ArchivedReposSchema = z.object({
@@ -74,7 +94,7 @@ const ArchivedReposSchema = z.object({
 const DefaultsSchema = z
   .object({
     merge_methods: MergeMethodsSchema,
-    branch_protection: BranchProtectionSchema,
+    branch_protection: BranchProtectionDefaultsSchema,
     security: SecuritySchema,
     permissions: PermissionsSchema,
     archived_repos: ArchivedReposSchema,

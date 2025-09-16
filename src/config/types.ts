@@ -35,6 +35,20 @@ export interface BranchProtection {
   allow_fork_syncing: boolean;
 }
 
+// Branch protection for defaults - most fields are optional
+export interface BranchProtectionDefaults {
+  patterns: string[];
+  enforce_admins?: boolean;
+  required_reviews?: RequiredReviews;
+  required_status_checks?: RequiredStatusChecks;
+  restrictions?: Restrictions | null;
+  allow_force_pushes?: boolean;
+  allow_deletions?: boolean;
+  required_conversation_resolution?: boolean;
+  lock_branch?: boolean;
+  allow_fork_syncing?: boolean;
+}
+
 export interface Security {
   secret_scanning: string;
   secret_scanning_push_protection: string;
@@ -48,9 +62,15 @@ export interface ConfigTeamPermission {
   permission: string;
 }
 
+export interface ConfigUserPermission {
+  user: string;
+  permission: string;
+}
+
 export interface Permissions {
   remove_individual_collaborators: boolean;
   teams: ConfigTeamPermission[];
+  users?: ConfigUserPermission[];
 }
 
 export interface ArchivedRepos {
@@ -65,7 +85,7 @@ export interface ArchivedRepos {
 
 export interface Defaults {
   merge_methods?: MergeMethods;
-  branch_protection?: BranchProtection;
+  branch_protection?: BranchProtectionDefaults;
   security?: Security;
   permissions?: Permissions;
   archived_repos?: ArchivedRepos;
