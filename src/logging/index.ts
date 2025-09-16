@@ -15,6 +15,7 @@ export interface ConsoleLoggerOptions {
   quiet?: boolean;
 }
 
+// Keep the old ConsoleLogger for backward compatibility
 class ConsoleLogger implements Logger {
   private level: LogLevel;
 
@@ -100,3 +101,5 @@ export async function group(title: string, fn: () => Promise<void>): Promise<voi
 }
 
 export { ConsoleLogger };
+export { ProgressLogger } from './progress-logger';
+export type { CheckSummary, LoggerOptions, OutputMode, ProgressUpdate } from './types';

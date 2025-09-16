@@ -2,6 +2,7 @@ import type { CheckContext, ComplianceCheck } from '../checks/base';
 import type { ComplianceConfig } from '../config/types';
 import type { GitHubClient } from '../github/client';
 import type { Repository } from '../github/types';
+import type { ProgressLogger } from '../logging';
 import * as logger from '../logging';
 import { getAvailableChecks, getCheck } from './check-registry';
 import type { CheckExecution, RepositoryReport, RunnerOptions, RunnerReport } from './types';
@@ -10,11 +11,22 @@ export class ComplianceRunner {
   private client: GitHubClient;
   private config: ComplianceConfig;
   private options: RunnerOptions;
+  private progressLogger?: ProgressLogger;
+  private repositoriesToCheck: Repository[] = [];
+  private processedRepositories: Map<string, number> = new Map();
 
-  constructor(client: GitHubClient, config: ComplianceConfig, options: RunnerOptions) {
+  constructor(
+    client: GitHubClient,
+    config: ComplianceConfig,
+    options: RunnerOptions,
+    progressLogger?: ProgressLogger
+  ) {
     this.client = client;
     this.config = config;
     this.options = options;
+    if (progressLogger !== undefined) {
+      this.progressLogger = progressLogger;
+    }
   }
 
   /**
@@ -22,31 +34,82 @@ export class ComplianceRunner {
    */
   async run(): Promise<RunnerReport> {
     const startTime = Date.now();
-    logger.info('🚀 Starting compliance checks...');
+
+    // Only log if not using ProgressLogger
+    if (!this.progressLogger) {
+      logger.info('🚀 Starting compliance checks...');
+    }
 
     // Get repositories to check
     const repositories = await this.getRepositoriesToCheck();
-    logger.info(`Found ${repositories.length} repositories to check`);
+    this.repositoriesToCheck = repositories;
+
+    if (!this.progressLogger) {
+      logger.info(`Found ${repositories.length} repositories to check`);
+    }
 
     // Determine which checks to run
     const checksToRun = this.getChecksToRun();
-    logger.info(`Will run ${checksToRun.length} checks: ${checksToRun.join(', ')}`);
+
+    if (!this.progressLogger) {
+      logger.info(`Will run ${checksToRun.length} checks: ${checksToRun.join(', ')}`);
+    } else {
+      // Initialize check summaries
+      for (const check of checksToRun) {
+        this.progressLogger.updateCheckSummary(check, {
+          status: 'pending',
+        });
+      }
+    }
+
+    // Start progress tracking
+    if (this.progressLogger) {
+      this.progressLogger.startProgress(
+        repositories.length,
+        `Scanning ${repositories.length} repositories...`
+      );
+    }
 
     // Process each repository
     const repositoryReports: RepositoryReport[] = [];
     const concurrency = this.options.concurrency || 5;
 
     // Process repositories in batches for concurrency control
+    let processedCount = 0;
     for (let i = 0; i < repositories.length; i += concurrency) {
       const batch = repositories.slice(i, i + concurrency);
       const batchReports = await Promise.all(
-        batch.map((repo) => this.checkRepository(repo, checksToRun))
+        batch.map(async (repo) => {
+          processedCount++;
+          this.processedRepositories.set(repo.full_name, processedCount);
+
+          const report = await this.checkRepository(repo, checksToRun);
+
+          // Update progress
+          if (this.progressLogger) {
+            this.progressLogger.updateProgress({
+              current: processedCount,
+              total: repositories.length,
+              repository: repo.name,
+              status: 'completed',
+            });
+          }
+
+          return report;
+        })
       );
       repositoryReports.push(...batchReports);
 
-      // Progress update
-      const processed = Math.min(i + concurrency, repositories.length);
-      logger.info(`Progress: ${processed}/${repositories.length} repositories processed`);
+      // Progress update for non-ProgressLogger
+      if (!this.progressLogger) {
+        const processed = Math.min(i + concurrency, repositories.length);
+        logger.info(`Progress: ${processed}/${repositories.length} repositories processed`);
+      }
+    }
+
+    // Stop progress tracking
+    if (this.progressLogger) {
+      this.progressLogger.stopProgress(true);
     }
 
     // Generate summary report
@@ -102,18 +165,56 @@ export class ComplianceRunner {
     repository: Repository,
     checksToRun: string[]
   ): Promise<RepositoryReport> {
-    await logger.group(`📦 Checking ${repository.full_name}`, async () => {
-      logger.info(
-        `Repository: ${repository.full_name} (${repository.private ? 'private' : 'public'}${repository.archived ? ', archived' : ''})`
-      );
-    });
+    // Only log for non-ProgressLogger
+    if (!this.progressLogger) {
+      await logger.group(`📦 Checking ${repository.full_name}`, async () => {
+        logger.info(
+          `Repository: ${repository.full_name} (${repository.private ? 'private' : 'public'}${repository.archived ? ', archived' : ''})`
+        );
+      });
+    }
 
     const checkExecutions: CheckExecution[] = [];
 
     for (const checkName of checksToRun) {
+      // Update progress for current check
+      if (this.progressLogger) {
+        const currentIndex = this.processedRepositories.get(repository.full_name) || 1;
+        this.progressLogger.updateProgress({
+          current: currentIndex,
+          total: this.repositoriesToCheck.length,
+          repository: repository.name,
+          check: checkName,
+          status: 'running',
+        });
+      }
+
       const execution = await this.runCheck(checkName, repository);
       if (execution) {
         checkExecutions.push(execution);
+
+        // Update check summary
+        if (this.progressLogger) {
+          const currentSummary = this.progressLogger.checkSummaries?.get(checkName) || {
+            name: checkName,
+            compliant: 0,
+            issues: 0,
+            fixed: 0,
+            status: 'running' as const,
+          };
+
+          if (execution.result?.compliant) {
+            currentSummary.compliant++;
+          } else {
+            currentSummary.issues++;
+          }
+
+          if (execution.result?.fixed) {
+            currentSummary.fixed++;
+          }
+
+          this.progressLogger.updateCheckSummary(checkName, currentSummary);
+        }
       }
     }
 
@@ -236,6 +337,15 @@ export class ComplianceRunner {
    * Generate summary report
    */
   private generateReport(repositoryReports: RepositoryReport[], startTime: number): RunnerReport {
+    // Mark all checks as completed in ProgressLogger
+    if (this.progressLogger) {
+      for (const [checkName, summary] of this.progressLogger.checkSummaries) {
+        this.progressLogger.updateCheckSummary(checkName, {
+          ...summary,
+          status: 'completed',
+        });
+      }
+    }
     const totalRepositories = repositoryReports.length;
     const compliantRepositories = repositoryReports.filter((r) => r.compliant).length;
     const nonCompliantRepositories = totalRepositories - compliantRepositories;

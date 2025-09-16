@@ -1,10 +1,6 @@
 import { throttling } from '@octokit/plugin-throttling';
 import { Octokit } from '@octokit/rest';
-import type {
-  OctokitRepository,
-  RepositoryListOptions,
-  VulnerabilityAlert,
-} from '../checks/types';
+import type { OctokitRepository, RepositoryListOptions, VulnerabilityAlert } from '../checks/types';
 import * as logger from '../logging';
 import type {
   BranchProtectionRule,
@@ -400,22 +396,17 @@ export class GitHubClient {
    */
   async getVulnerabilityAlerts(owner: string, repo: string): Promise<VulnerabilityAlert[]> {
     try {
-      const alerts = await this.octokit.paginate(
-        this.octokit.rest.dependabot.listAlertsForRepo,
-        {
-          owner,
-          repo,
-          per_page: 100,
-          state: 'all',
-        }
-      );
+      const alerts = await this.octokit.paginate(this.octokit.rest.dependabot.listAlertsForRepo, {
+        owner,
+        repo,
+        per_page: 100,
+        state: 'all',
+      });
 
       return alerts as unknown as VulnerabilityAlert[];
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Failed to list vulnerability alerts for ${owner}/${repo}: ${message}`
-      );
+      throw new Error(`Failed to list vulnerability alerts for ${owner}/${repo}: ${message}`);
     }
   }
 

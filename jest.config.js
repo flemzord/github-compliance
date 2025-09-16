@@ -17,6 +17,10 @@ module.exports = {
   moduleNameMapper: {
     '@octokit/plugin-throttling': '<rootDir>/src/__mocks__/@octokit/plugin-throttling.js',
     '@octokit/rest': '<rootDir>/src/__mocks__/@octokit/rest.js',
+    '^chalk$': '<rootDir>/src/__mocks__/chalk.js',
+    '^ora$': '<rootDir>/src/__mocks__/ora.js',
+    '^log-update$': '<rootDir>/src/__mocks__/log-update.js',
+    '^cli-table3$': '<rootDir>/src/__mocks__/cli-table3.js',
   },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
