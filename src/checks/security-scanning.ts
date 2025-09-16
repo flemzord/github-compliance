@@ -125,7 +125,7 @@ export class SecurityScanningCheck extends BaseCheck {
             }
           }
         } catch (error) {
-          logger.warning(
+          logger.debug(
             `Could not check code scanning status: ${error instanceof Error ? error.message : String(error)}`
           );
         }
@@ -157,11 +157,12 @@ export class SecurityScanningCheck extends BaseCheck {
             vulnAlerts.open &&
             vulnAlerts.open > 0
           ) {
-            logger.warning(
+            logger.debug(
               `Repository ${repository.full_name} has ${vulnAlerts.open} open vulnerability alerts`
             );
           }
         } catch (error) {
+          // Silently handle expected errors (403, etc)
           logger.debug(
             `Could not fetch vulnerability alerts: ${error instanceof Error ? error.message : String(error)}`
           );

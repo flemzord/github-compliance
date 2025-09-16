@@ -74,7 +74,6 @@ export class CompactRenderer {
     // Progress bar
     if (this.state.phase === 'processing') {
       lines.push(this.renderProgressBar());
-      lines.push('');
     }
 
     // Current activity
@@ -90,17 +89,17 @@ export class CompactRenderer {
 
     // Check summaries (compact)
     if (this.state.checkSummaries.size > 0) {
-      lines.push('');
       lines.push(this.renderCheckSummaries());
     }
 
     // Stats line
     if (this.state.phase === 'processing') {
-      lines.push('');
       lines.push(this.renderStats());
     }
 
-    logUpdate(lines.join('\n'));
+    // Clear and update with proper line count
+    const content = lines.filter((line) => line.length > 0).join('\n');
+    logUpdate(content);
   }
 
   private renderProgressBar(): string {
@@ -117,7 +116,7 @@ export class CompactRenderer {
 
   private renderCheckSummaries(): string {
     const checks = Array.from(this.state.checkSummaries.entries());
-    const lines: string[] = [];
+    const lines: string[] = ['']; // Add separator line
 
     for (const [name, summary] of checks) {
       const icon = this.getCheckIcon(summary);
@@ -166,7 +165,7 @@ export class CompactRenderer {
     const rate =
       this.state.processedRepos > 0 ? (this.state.processedRepos / elapsed).toFixed(1) : '0';
 
-    return chalk.gray(`⏱  ${elapsed}s elapsed | ${rate} repos/s`);
+    return `\n${chalk.gray(`⏱  ${elapsed}s elapsed | ${rate} repos/s`)}`;
   }
 
   private truncate(str: string, maxWidth: number): string {

@@ -385,7 +385,11 @@ export class GitHubClient {
         settings.dependabot_alerts = { enabled: false };
       }
     } catch (error) {
-      logger.warning(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
+      // Only log warnings for non-403 errors in verbose mode
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('403')) {
+        logger.debug(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
+      }
     }
 
     return settings;
@@ -405,6 +409,10 @@ export class GitHubClient {
 
       return alerts as unknown as VulnerabilityAlert[];
     } catch (error) {
+      // Silently handle 403 errors (permission denied) - common for repos without proper permissions
+      if (error instanceof Error && error.message.includes('403')) {
+        return [];
+      }
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to list vulnerability alerts for ${owner}/${repo}: ${message}`);
     }

@@ -464,7 +464,7 @@ describe('SecurityScanningCheck', () => {
 
         await check.check(problematicContext);
 
-        expect(mockLogger.warning).toHaveBeenCalledWith(
+        expect(mockLogger.debug).toHaveBeenCalledWith(
           expect.stringContaining('Could not check code scanning status')
         );
       });
@@ -487,7 +487,7 @@ describe('SecurityScanningCheck', () => {
       it('should warn about open vulnerability alerts', async () => {
         await check.check(context);
 
-        expect(mockLogger.warning).toHaveBeenCalledWith(
+        expect(mockLogger.debug).toHaveBeenCalledWith(
           'Repository owner/test-repo has 2 open vulnerability alerts'
         );
       });
