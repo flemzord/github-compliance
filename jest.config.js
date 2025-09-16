@@ -38,6 +38,12 @@ module.exports = {
       lines: 70,
       statements: 70,
     },
+    'src/config/**/*.ts': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
   },
   testTimeout: 30000,
   verbose: true,
