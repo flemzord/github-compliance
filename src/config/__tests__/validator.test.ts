@@ -213,6 +213,35 @@ defaults:
       await expect(validateFromString(invalidPermission)).rejects.toThrow(ConfigValidationError);
     });
 
+    it('should reject conflicting repository visibility settings', async () => {
+      const conflictingVisibility = `
+version: 1
+defaults:
+  repository_settings:
+    visibility:
+      allow_public: true
+      enforce_private: true
+`;
+
+      await expect(validateFromString(conflictingVisibility)).rejects.toThrow(
+        ConfigValidationError
+      );
+    });
+
+    it('should accept repository visibility settings when not conflicting', async () => {
+      const validVisibility = `
+version: 1
+defaults:
+  repository_settings:
+    visibility:
+      allow_public: true
+      enforce_private: false
+`;
+
+      const config = await validateFromString(validVisibility);
+      expect(config.defaults.repository_settings?.visibility?.allow_public).toBe(true);
+    });
+
     it('should include guidance for invalid enum values', async () => {
       const invalidEnums = `
 version: 1
