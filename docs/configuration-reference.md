@@ -13,6 +13,7 @@ This document provides a comprehensive reference for all configuration options a
   - [Security Settings](#security-settings)
   - [Permissions](#permissions)
   - [Archived Repositories](#archived-repositories)
+  - [Repository Settings](#repository-settings)
 - [Rules Section](#rules-section)
 - [Checks Section](#checks-section)
 - [Complete Configuration Example](#complete-configuration-example)
@@ -257,6 +258,76 @@ defaults:
     specific_repos: ["old-project-2019"]
 ```
 
+### Repository Settings
+
+Validate and enforce repository-level options such as feature toggles, visibility, and workflow helpers.
+
+**Path**: `defaults.repository_settings`
+
+#### Feature Toggles (`defaults.repository_settings.features`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `has_issues` | `boolean` | Enable GitHub Issues |
+| `has_projects` | `boolean` | Enable classic Projects (deprecated in some plans) |
+| `has_wiki` | `boolean` | Enable the repository wiki |
+| `has_discussions` | `boolean` | Enable GitHub Discussions |
+| `has_pages` | `boolean` | Enable GitHub Pages |
+
+#### Visibility Controls (`defaults.repository_settings.visibility`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allow_public` | `boolean` | Permit repositories to remain public |
+| `enforce_private` | `boolean` | Force repositories to be private (takes precedence over `allow_public`) |
+
+#### General Options (`defaults.repository_settings.general`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allow_auto_merge` | `boolean` | Allow pull requests to auto-merge when checks succeed |
+| `delete_branch_on_merge` | `boolean` | Delete head branches automatically after merging |
+| `allow_update_branch` | `boolean` | Allow maintainers to update pull request branches |
+| `use_squash_pr_title_as_default` | `boolean` | Use the pull request title as the default squash commit message |
+| `allow_merge_commit` | `boolean` | Allow merge commits |
+| `allow_squash_merge` | `boolean` | Allow squash merging |
+| `allow_rebase_merge` | `boolean` | Allow rebase merging |
+
+#### Template Requirements (`defaults.repository_settings.templates`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `require_issue_templates` | `boolean` | Require an issue template directory or file to be present |
+| `require_pr_template` | `boolean` | Require a pull request template file to be present |
+
+> ℹ️ Template checks verify the existence of common template paths (e.g. `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`). They surface remediation guidance but do not create templates automatically.
+
+**Example**:
+```yaml
+defaults:
+  repository_settings:
+    features:
+      has_issues: true
+      has_projects: false
+      has_wiki: false
+      has_discussions: false
+      has_pages: false
+    visibility:
+      allow_public: false
+      enforce_private: true
+    general:
+      allow_auto_merge: true
+      delete_branch_on_merge: true
+      allow_update_branch: true
+      use_squash_pr_title_as_default: true
+      allow_merge_commit: false
+      allow_squash_merge: true
+      allow_rebase_merge: false
+    templates:
+      require_issue_templates: true
+      require_pr_template: true
+```
+
 ## Rules Section
 
 Rules allow you to apply different settings to specific repositories based on matching criteria.
@@ -349,6 +420,7 @@ Specifies which compliance checks to run.
 - `repo-branch-protection`: Ensures branch protection rules are configured
 - `repo-security-controls`: Validates security features are enabled
 - `repo-archival-policy`: Validates archived repository settings
+- `repository-settings`: Validates repository-level options (features, visibility, templates)
 
 **Example**:
 ```yaml
@@ -360,6 +432,7 @@ checks:
     - repo-branch-protection
     - repo-security-controls
     - repo-archival-policy
+    - repository-settings
 ```
 
 If not specified, all checks are enabled by default.
@@ -410,6 +483,28 @@ defaults:
     dependabot_alerts: true
     dependabot_updates: true
     code_scanning_recommended: true
+
+  repository_settings:
+    features:
+      has_issues: true
+      has_projects: false
+      has_wiki: false
+      has_discussions: false
+      has_pages: false
+    visibility:
+      allow_public: false
+      enforce_private: true
+    general:
+      allow_auto_merge: true
+      delete_branch_on_merge: true
+      allow_update_branch: true
+      use_squash_pr_title_as_default: true
+      allow_merge_commit: false
+      allow_squash_merge: true
+      allow_rebase_merge: false
+    templates:
+      require_issue_templates: true
+      require_pr_template: true
 
   permissions:
     remove_individual_collaborators: true
@@ -477,12 +572,21 @@ rules:
 # Enabled compliance checks
 checks:
   enabled:
+<<<<<<< HEAD
     - org-team-sync
     - repo-merge-strategy
     - repo-access-teams
     - repo-branch-protection
     - repo-security-controls
     - repo-archival-policy
+=======
+    - merge-methods
+    - team-permissions
+    - branch-protection
+    - security-scanning
+    - archived-repos
+    - repository-settings
+>>>>>>> 2644f36 (feat: add repository settings compliance check)
 ```
 
 ## Best Practices

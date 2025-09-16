@@ -32,6 +32,16 @@ export interface RepositoryUpdateSettings {
   allow_squash_merge?: boolean;
   allow_rebase_merge?: boolean;
   archived?: boolean;
+  allow_auto_merge?: boolean;
+  delete_branch_on_merge?: boolean;
+  allow_update_branch?: boolean;
+  use_squash_pr_title_as_default?: boolean;
+  has_issues?: boolean;
+  has_projects?: boolean;
+  has_wiki?: boolean;
+  has_discussions?: boolean;
+  has_pages?: boolean;
+  private?: boolean;
   [key: string]: unknown;
 }
 
@@ -40,6 +50,20 @@ export interface RepositoryWithMergeMethods {
   allow_squash_merge?: boolean;
   allow_rebase_merge?: boolean;
   [key: string]: unknown;
+}
+
+export interface RepositoryWithSettings extends RepositoryWithMergeMethods {
+  has_issues?: boolean;
+  has_projects?: boolean;
+  has_wiki?: boolean;
+  has_discussions?: boolean;
+  has_pages?: boolean;
+  allow_auto_merge?: boolean;
+  delete_branch_on_merge?: boolean;
+  allow_update_branch?: boolean;
+  use_squash_pr_title_as_default?: boolean;
+  visibility?: string;
+  private?: boolean;
 }
 
 export interface BranchProtectionConfig {

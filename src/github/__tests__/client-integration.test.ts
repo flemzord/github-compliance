@@ -355,6 +355,47 @@ describe('GitHubClient Integration Tests', () => {
       }
     });
 
+    it('should detect existing repository paths', async () => {
+      const getContent = jest.fn().mockResolvedValue({});
+      const clientWithContent = createMockClient({
+        rest: {
+          repos: {
+            getContent,
+          },
+        },
+      });
+
+      await expect(clientWithContent.pathExists('owner', 'repo', 'README.md')).resolves.toBe(true);
+      expect(getContent).toHaveBeenCalledWith({ owner: 'owner', repo: 'repo', path: 'README.md' });
+    });
+
+    it('should return false for missing repository paths', async () => {
+      const error: TestErrorWithStatus = { name: 'HttpError', status: 404, message: 'Not Found' };
+      const clientWith404 = createMockClient({
+        rest: {
+          repos: {
+            getContent: jest.fn().mockRejectedValue(error),
+          },
+        },
+      });
+
+      await expect(clientWith404.pathExists('owner', 'repo', 'missing-file')).resolves.toBe(false);
+    });
+
+    it('should surface errors when repository path lookup fails', async () => {
+      const clientWithError = createMockClient({
+        rest: {
+          repos: {
+            getContent: jest.fn().mockRejectedValue(new Error('boom')),
+          },
+        },
+      });
+
+      await expect(clientWithError.pathExists('owner', 'repo', 'README.md')).rejects.toThrow(
+        'Failed to access owner/repo path README.md: boom'
+      );
+    });
+
     it('should test addTeamToRepository with different permissions', async () => {
       const permissions = ['pull', 'triage', 'push', 'maintain', 'admin'] as const;
 

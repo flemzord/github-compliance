@@ -159,12 +159,48 @@ export interface ArchivedRepos {
   specific_repos?: string[];
 }
 
+export interface RepositoryFeaturesConfig {
+  has_issues?: boolean;
+  has_projects?: boolean;
+  has_wiki?: boolean;
+  has_discussions?: boolean;
+  has_pages?: boolean;
+}
+
+export interface RepositoryVisibilityConfig {
+  allow_public?: boolean;
+  enforce_private?: boolean;
+}
+
+export interface RepositoryGeneralSettingsConfig {
+  allow_auto_merge?: boolean;
+  delete_branch_on_merge?: boolean;
+  allow_update_branch?: boolean;
+  use_squash_pr_title_as_default?: boolean;
+  allow_merge_commit?: boolean;
+  allow_squash_merge?: boolean;
+  allow_rebase_merge?: boolean;
+}
+
+export interface RepositoryTemplatesConfig {
+  require_issue_templates?: boolean;
+  require_pr_template?: boolean;
+}
+
+export interface RepositorySettingsConfig {
+  features?: RepositoryFeaturesConfig;
+  visibility?: RepositoryVisibilityConfig;
+  general?: RepositoryGeneralSettingsConfig;
+  templates?: RepositoryTemplatesConfig;
+}
+
 export interface Defaults {
   merge_methods?: MergeMethods;
   branch_protection?: BranchProtectionDefaults;
   security?: Security;
   permissions?: Permissions;
   archived_repos?: ArchivedRepos;
+  repository_settings?: RepositorySettingsConfig;
 }
 
 export interface MatchCriteria {

@@ -34,6 +34,9 @@
         },
         "archived_repos": {
           "$ref": "#/definitions/archived_repos"
+        },
+        "repository_settings": {
+          "$ref": "#/definitions/repository_settings"
         }
       },
       "additionalProperties": false
@@ -81,6 +84,9 @@
               },
               "archived_repos": {
                 "$ref": "#/definitions/archived_repos_partial"
+              },
+              "repository_settings": {
+                "$ref": "#/definitions/repository_settings_partial"
               }
             },
             "additionalProperties": false
@@ -325,7 +331,14 @@
           "$ref": "#/definitions/required_status_checks"
         },
         "restrictions": {
-          "oneOf": [{ "$ref": "#/definitions/restrictions" }, { "type": "null" }],
+          "oneOf": [
+            {
+              "$ref": "#/definitions/restrictions"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "description": "Restrict who can push to protected branches (optional - leave out or set to null if not needed)"
         },
         "allow_force_pushes": {
@@ -431,7 +444,14 @@
           "$ref": "#/definitions/required_status_checks_partial"
         },
         "restrictions": {
-          "oneOf": [{ "$ref": "#/definitions/restrictions_partial" }, { "type": "null" }]
+          "oneOf": [
+            {
+              "$ref": "#/definitions/restrictions_partial"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "allow_force_pushes": {
           "type": "boolean"
@@ -807,6 +827,136 @@
           "items": {
             "type": "string"
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    "repository_features": {
+      "type": "object",
+      "description": "Toggle availability of built-in repository features",
+      "properties": {
+        "has_issues": {
+          "type": "boolean",
+          "description": "Enable GitHub Issues"
+        },
+        "has_projects": {
+          "type": "boolean",
+          "description": "Enable GitHub Projects"
+        },
+        "has_wiki": {
+          "type": "boolean",
+          "description": "Enable repository wiki"
+        },
+        "has_discussions": {
+          "type": "boolean",
+          "description": "Enable GitHub Discussions"
+        },
+        "has_pages": {
+          "type": "boolean",
+          "description": "Enable GitHub Pages"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repository_visibility": {
+      "type": "object",
+      "description": "Visibility requirements for repositories",
+      "properties": {
+        "allow_public": {
+          "type": "boolean",
+          "description": "Whether public repositories are allowed"
+        },
+        "enforce_private": {
+          "type": "boolean",
+          "description": "Require repositories to be private"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repository_general_settings": {
+      "type": "object",
+      "description": "General repository options and merge settings",
+      "properties": {
+        "allow_auto_merge": {
+          "type": "boolean",
+          "description": "Allow auto-merge for pull requests"
+        },
+        "delete_branch_on_merge": {
+          "type": "boolean",
+          "description": "Automatically delete head branch after merging"
+        },
+        "allow_update_branch": {
+          "type": "boolean",
+          "description": "Allow maintainers to update pull request branches"
+        },
+        "use_squash_pr_title_as_default": {
+          "type": "boolean",
+          "description": "Default squash commit title to pull request title"
+        },
+        "allow_merge_commit": {
+          "type": "boolean",
+          "description": "Allow merge commits"
+        },
+        "allow_squash_merge": {
+          "type": "boolean",
+          "description": "Allow squash merging"
+        },
+        "allow_rebase_merge": {
+          "type": "boolean",
+          "description": "Allow rebase merging"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repository_templates": {
+      "type": "object",
+      "description": "Template requirements for collaboration workflows",
+      "properties": {
+        "require_issue_templates": {
+          "type": "boolean",
+          "description": "Require issue templates to exist"
+        },
+        "require_pr_template": {
+          "type": "boolean",
+          "description": "Require a pull request template to exist"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repository_settings": {
+      "type": "object",
+      "description": "Repository settings compliance policy",
+      "properties": {
+        "features": {
+          "$ref": "#/definitions/repository_features"
+        },
+        "visibility": {
+          "$ref": "#/definitions/repository_visibility"
+        },
+        "general": {
+          "$ref": "#/definitions/repository_general_settings"
+        },
+        "templates": {
+          "$ref": "#/definitions/repository_templates"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repository_settings_partial": {
+      "type": "object",
+      "description": "Partial repository settings overrides for matched repositories",
+      "properties": {
+        "features": {
+          "$ref": "#/definitions/repository_features"
+        },
+        "visibility": {
+          "$ref": "#/definitions/repository_visibility"
+        },
+        "general": {
+          "$ref": "#/definitions/repository_general_settings"
+        },
+        "templates": {
+          "$ref": "#/definitions/repository_templates"
         }
       },
       "additionalProperties": false

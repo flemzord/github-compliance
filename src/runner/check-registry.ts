@@ -1,6 +1,7 @@
 import { ArchivedReposCheck } from '../checks/archived-repos';
 import { BranchProtectionCheck } from '../checks/branch-protection';
 import { MergeMethodsCheck } from '../checks/merge-methods';
+import { RepositorySettingsCheck } from '../checks/repository-settings';
 import { SecurityScanningCheck } from '../checks/security-scanning';
 import { TeamPermissionsCheck } from '../checks/team-permissions';
 import { TeamSyncCheck } from '../checks/team-sync';
@@ -16,6 +17,7 @@ const checkRegistry: CheckRegistry = {
   'repo-branch-protection': BranchProtectionCheck,
   'repo-security-controls': SecurityScanningCheck,
   'repo-archival-policy': ArchivedReposCheck,
+  'repository-settings': RepositorySettingsCheck,
 };
 
 const legacyCheckAliases: Record<string, keyof typeof checkRegistry> = {

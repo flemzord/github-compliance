@@ -247,6 +247,51 @@ const ArchivedReposSchema = z.object({
   specific_repos: z.array(z.string()).optional(),
 });
 
+const RepositoryFeaturesSchema = z
+  .object({
+    has_issues: z.boolean().optional(),
+    has_projects: z.boolean().optional(),
+    has_wiki: z.boolean().optional(),
+    has_discussions: z.boolean().optional(),
+    has_pages: z.boolean().optional(),
+  })
+  .strict();
+
+const RepositoryVisibilitySchema = z
+  .object({
+    allow_public: z.boolean().optional(),
+    enforce_private: z.boolean().optional(),
+  })
+  .strict();
+
+const RepositoryGeneralSettingsSchema = z
+  .object({
+    allow_auto_merge: z.boolean().optional(),
+    delete_branch_on_merge: z.boolean().optional(),
+    allow_update_branch: z.boolean().optional(),
+    use_squash_pr_title_as_default: z.boolean().optional(),
+    allow_merge_commit: z.boolean().optional(),
+    allow_squash_merge: z.boolean().optional(),
+    allow_rebase_merge: z.boolean().optional(),
+  })
+  .strict();
+
+const RepositoryTemplatesSchema = z
+  .object({
+    require_issue_templates: z.boolean().optional(),
+    require_pr_template: z.boolean().optional(),
+  })
+  .strict();
+
+const RepositorySettingsSchema = z
+  .object({
+    features: RepositoryFeaturesSchema.optional(),
+    visibility: RepositoryVisibilitySchema.optional(),
+    general: RepositoryGeneralSettingsSchema.optional(),
+    templates: RepositoryTemplatesSchema.optional(),
+  })
+  .strict();
+
 const DefaultsSchema = z
   .object({
     merge_methods: MergeMethodsSchema,
@@ -254,6 +299,7 @@ const DefaultsSchema = z
     security: SecuritySchema,
     permissions: PermissionsSchema,
     archived_repos: ArchivedReposSchema,
+    repository_settings: RepositorySettingsSchema,
   })
   .partial();
 
@@ -271,6 +317,7 @@ const RuleSchema = z.object({
       security: SecuritySchema.partial(),
       permissions: PermissionsSchema.partial(),
       archived_repos: ArchivedReposSchema.partial(),
+      repository_settings: RepositorySettingsSchema.partial(),
     })
     .partial(),
 });
@@ -306,7 +353,11 @@ const LEGACY_CHECK_NAME_ALIASES: Record<
 };
 
 const CheckNameSchema = z
-  .union([z.enum(NEW_CHECK_NAMES), z.enum(LEGACY_CHECK_NAMES)])
+  .union([
+    z.enum(NEW_CHECK_NAMES),
+    z.enum(LEGACY_CHECK_NAMES),
+    z.literal('repository-settings')
+  ])
   .transform(
     (value) => LEGACY_CHECK_NAME_ALIASES[value as (typeof LEGACY_CHECK_NAMES)[number]] ?? value
   );

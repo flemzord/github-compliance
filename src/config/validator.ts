@@ -154,6 +154,7 @@ function getFieldContext(path: string): string {
     'defaults.security': 'Manages security features like secret scanning and vulnerability alerts',
     'defaults.permissions': 'Defines team access levels and collaborator management',
     'defaults.archived_repos': 'Controls access and management of archived repositories',
+    'defaults.repository_settings': 'Governs repository features, visibility, and workflow helpers',
     organization: 'The GitHub organization name to apply compliance rules to',
     rules: 'Repository-specific overrides based on patterns or criteria',
     checks: 'List of compliance checks to run (deprecated - checks are determined by defaults)',

@@ -105,6 +105,7 @@ The CLI can perform the following compliance checks:
 | `repo-access-teams` | Manages repository team access and individual collaborators |
 | `repo-security-controls` | Verifies security features (secret scanning, Dependabot, code scanning) |
 | `repo-archival-policy` | Controls access to archived repositories |
+| `repository-settings` | Enforces repository feature toggles, visibility, and collaboration templates |
 
 Legacy identifiers (merge-methods, team-permissions, branch-protection, security-scanning, archived-repos, team-sync) are still accepted and automatically mapped to the new names.
 
