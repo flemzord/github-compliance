@@ -10,6 +10,7 @@ interface RenderState {
   totalRepos: number;
   checkSummaries: Map<string, CheckSummary>;
   startTime: number;
+  dirty: boolean;
 }
 
 export class CompactRenderer {
@@ -25,21 +26,28 @@ export class CompactRenderer {
       totalRepos: 0,
       checkSummaries: new Map(),
       startTime: Date.now(),
+      dirty: true,
     };
 
     // Update on terminal resize
     process.stdout.on('resize', () => {
       this.width = process.stdout.columns || 80;
-      this.render();
+      this.state.dirty = true;
     });
   }
 
   start(totalRepos: number): void {
     this.state.totalRepos = totalRepos;
     this.state.phase = 'processing';
+    this.state.dirty = true;
 
-    // Start rendering loop
-    this.intervalId = setInterval(() => this.render(), 100);
+    // Start rendering loop with slower interval to reduce flickering
+    this.intervalId = setInterval(() => {
+      if (this.state.dirty) {
+        this.render();
+        this.state.dirty = false;
+      }
+    }, 250);
     this.render();
   }
 
@@ -62,44 +70,51 @@ export class CompactRenderer {
     if (check !== undefined) {
       this.state.currentCheck = check;
     }
+    this.state.dirty = true;
   }
 
   updateCheck(name: string, summary: CheckSummary): void {
     this.state.checkSummaries.set(name, summary);
+    this.state.dirty = true;
   }
 
   private render(): void {
     const lines: string[] = [];
 
-    // Progress bar
-    if (this.state.phase === 'processing') {
-      lines.push(this.renderProgressBar());
-    }
+    // Always render progress bar section (fixed height)
+    lines.push(this.renderProgressBar());
 
-    // Current activity
-    if (this.state.currentRepo) {
-      const activity = this.truncate(
-        `${chalk.cyan('►')} ${this.state.currentRepo}${
-          this.state.currentCheck ? ` | ${this.state.currentCheck}` : ''
-        }`,
-        this.width
-      );
-      lines.push(activity);
-    }
+    // Always render current activity section (fixed height)
+    const activity = this.state.currentRepo
+      ? this.truncate(
+          `${chalk.cyan('►')} ${this.state.currentRepo}${
+            this.state.currentCheck ? ` | ${this.state.currentCheck}` : ''
+          }`,
+          this.width
+        )
+      : ' '; // Empty line to maintain height
+    lines.push(activity);
 
-    // Check summaries (compact)
+    // Always render check summaries section (may have variable height but always present)
+    lines.push(''); // Separator
     if (this.state.checkSummaries.size > 0) {
-      lines.push(this.renderCheckSummaries());
+      for (const [name, summary] of this.state.checkSummaries) {
+        const icon = this.getCheckIcon(summary);
+        const stats = this.formatCheckStats(summary);
+        const line = `${icon} ${chalk.bold(name)}: ${stats}`;
+        lines.push(this.truncate(line, this.width));
+      }
+    } else {
+      lines.push(chalk.gray('Initializing checks...'));
     }
 
-    // Stats line
-    if (this.state.phase === 'processing') {
-      lines.push(this.renderStats());
-    }
+    // Always render stats line
+    lines.push(''); // Separator
+    lines.push(this.renderStats());
 
-    // Clear and update with proper line count
-    const content = lines.filter((line) => line.length > 0).join('\n');
-    logUpdate(content);
+    // Clear previous content and update with new content
+    logUpdate.clear();
+    logUpdate(lines.join('\n'));
   }
 
   private renderProgressBar(): string {
@@ -112,20 +127,6 @@ export class CompactRenderer {
     const counter = `${this.state.processedRepos}/${this.state.totalRepos}`;
 
     return `${bar} ${chalk.bold(`${percentage}%`)} | ${counter}`;
-  }
-
-  private renderCheckSummaries(): string {
-    const checks = Array.from(this.state.checkSummaries.entries());
-    const lines: string[] = ['']; // Add separator line
-
-    for (const [name, summary] of checks) {
-      const icon = this.getCheckIcon(summary);
-      const stats = this.formatCheckStats(summary);
-      const line = `${icon} ${chalk.bold(name)}: ${stats}`;
-      lines.push(this.truncate(line, this.width));
-    }
-
-    return lines.join('\n');
   }
 
   private getCheckIcon(summary: CheckSummary): string {
@@ -165,7 +166,7 @@ export class CompactRenderer {
     const rate =
       this.state.processedRepos > 0 ? (this.state.processedRepos / elapsed).toFixed(1) : '0';
 
-    return `\n${chalk.gray(`⏱  ${elapsed}s elapsed | ${rate} repos/s`)}`;
+    return chalk.gray(`⏱  ${elapsed}s elapsed | ${rate} repos/s`);
   }
 
   private truncate(str: string, maxWidth: number): string {
