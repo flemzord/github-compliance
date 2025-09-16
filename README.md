@@ -154,11 +154,13 @@ defaults:
   branch_protection:
     patterns: ["main", "master", "release/*"]
     enforce_admins: true
-    required_pull_request_reviews:
+    required_reviews:
       dismiss_stale_reviews: true
       required_approving_review_count: 2
       require_code_owner_reviews: true
+      require_last_push_approval: false
     required_status_checks:
+      auto_discover: false
       strict: true
       contexts: ["ci/tests", "ci/lint"]
     restrictions:
@@ -172,7 +174,8 @@ defaults:
     secret_scanning: "enabled"
     secret_scanning_push_protection: "enabled"
     dependabot_alerts: true
-    code_scanning: true
+    dependabot_updates: true
+    code_scanning_recommended: true
 
   permissions:
     remove_individual_collaborators: true
@@ -183,6 +186,7 @@ defaults:
         permission: "write"
 
   archived_repos:
+    admin_team_only: false
     archive_inactive: true
     inactive_days: 365
 
@@ -193,7 +197,7 @@ rules:
     apply:
       branch_protection:
         patterns: ["main", "release/*"]
-        required_pull_request_reviews:
+        required_reviews:
           required_approving_review_count: 3
         enforce_admins: true
 
