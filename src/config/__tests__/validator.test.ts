@@ -144,7 +144,10 @@ version: 2
 defaults: {}
 `;
 
-      await expect(validateFromString(invalidVersion)).rejects.toThrow(ConfigValidationError);
+      const error = await validateFromString(invalidVersion).catch((e) => e);
+      expect(error).toBeInstanceOf(ConfigValidationError);
+      const issues = (error as ConfigValidationError).issues.join('\n');
+      expect(issues).toContain('version: Invalid input: expected 1');
     });
 
     it('should reject missing required fields', async () => {
@@ -180,6 +183,32 @@ defaults:
 `;
 
       await expect(validateFromString(invalidPermission)).rejects.toThrow(ConfigValidationError);
+    });
+
+    it('should include guidance for invalid enum values', async () => {
+      const invalidEnums = `
+version: 1
+defaults:
+  security:
+    secret_scanning: "maybe"
+    secret_scanning_push_protection: "auto"
+    dependabot_alerts: false
+    dependabot_updates: false
+    code_scanning_recommended: true
+  permissions:
+    remove_individual_collaborators: true
+    teams:
+      - team: "admin"
+        permission: "invalid"
+`;
+
+      const error = await validateFromString(invalidEnums).catch((e) => e);
+      expect(error).toBeInstanceOf(ConfigValidationError);
+      const issues = (error as ConfigValidationError).issues.join('\n');
+      expect(issues).toContain(
+        'Manages security features like secret scanning and vulnerability alerts'
+      );
+      expect(issues).toContain('Defines team access levels and collaborator management');
     });
 
     it('should reject invalid security settings', async () => {
@@ -302,6 +331,122 @@ defaults:
       } finally {
         // Restore original
         require('../schema').ComplianceConfigSchema.parse = originalParse;
+      }
+    });
+
+    it('should add contextual help for common validation issues', async () => {
+      const schemaModule = require('../schema');
+      const originalParse = schemaModule.ComplianceConfigSchema.parse;
+      const { ZodError } = require('zod');
+
+      schemaModule.ComplianceConfigSchema.parse = jest.fn().mockImplementation(() => {
+        throw new ZodError([
+          {
+            code: 'invalid_type',
+            expected: 'object',
+            received: 'string',
+            path: ['defaults', 'branch_protection', 'restrictions'],
+            message: 'Invalid type',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_type',
+            expected: 'object',
+            received: 'number',
+            path: ['defaults', 'branch_protection', 'required_reviews'],
+            message: 'Invalid type',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_type',
+            expected: 'object',
+            received: 'null',
+            path: ['defaults', 'branch_protection', 'required_status_checks'],
+            message: 'Invalid type',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_type',
+            expected: 'array',
+            received: 'string',
+            path: ['defaults', 'branch_protection', 'patterns'],
+            message: 'Invalid type',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_enum_value',
+            options: ['enabled', 'disabled'],
+            path: ['defaults', 'security', 'secret_scanning'],
+            message: 'Invalid enum value',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_enum_value',
+            options: ['read', 'triage', 'write', 'maintain', 'admin', 'push'],
+            path: ['defaults', 'permissions', 'teams', 0, 'permission'],
+            message: 'Invalid enum value',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_enum_value',
+            options: ['foo', 'bar'],
+            path: ['defaults', 'permissions', 'users', 0, 'role'],
+            message: 'Invalid enum value',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_enum_value',
+            options: ['strict', 'lenient'],
+            path: ['defaults', 'security', 'mode'],
+            message: 'Invalid enum value',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'unrecognized_keys',
+            keys: ['unexpected'],
+            path: ['defaults', 'branch_protection'],
+            message: 'Unrecognized keys',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_literal',
+            expected: 1,
+            path: ['version'],
+            message: 'Invalid literal',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'invalid_literal',
+            expected: 'enabled',
+            path: ['defaults', 'security', 'dependabot_alerts'],
+            message: 'Invalid literal',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'custom',
+            path: ['defaults', 'security'],
+            message: 'Generic security issue',
+          } as unknown as import('zod').ZodIssue,
+          {
+            code: 'custom',
+            path: ['rules', 0, 'apply', 'merge_methods'],
+            message: 'Rule specific issue',
+          } as unknown as import('zod').ZodIssue,
+        ]);
+      });
+
+      try {
+        const error = await validateFromString('version: 1\ndefaults: {}').catch((e) => e);
+        expect(error).toBeInstanceOf(ConfigValidationError);
+        const issues = (error as ConfigValidationError).issues.join('\n');
+
+        expect(issues).toContain("restrictions' field defines who can push");
+        expect(issues).toContain(
+          "'required_reviews' field configures pull request review requirements"
+        );
+        expect(issues).toContain(
+          "'required_status_checks' field ensures CI/CD checks pass before merging"
+        );
+        expect(issues).toContain("'patterns' field specifies which branches to protect");
+        expect(issues).toContain("'secret_scanning': Controls GitHub's secret detection");
+        expect(issues).toContain('Team permissions control repository access levels');
+        expect(issues).toContain('Unrecognized key(s): unexpected');
+        expect(issues).toContain("The 'version' field must be exactly 1");
+        expect(issues).toContain(
+          'Manages security features like secret scanning and vulnerability alerts'
+        );
+        expect(issues).toContain('Repository-specific overrides based on patterns or criteria');
+      } finally {
+        schemaModule.ComplianceConfigSchema.parse = originalParse;
       }
     });
   });
