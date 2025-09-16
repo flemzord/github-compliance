@@ -29,7 +29,7 @@ export class BranchProtectionCheck extends BaseCheck {
       };
 
       // Extract patterns and other protection rules
-      const { patterns, ...protectionRules } = config as unknown as {
+      const { patterns, ...baseProtectionRules } = config as unknown as {
         patterns?: string[];
         [key: string]: unknown;
       };
@@ -46,6 +46,11 @@ export class BranchProtectionCheck extends BaseCheck {
         // TODO: Implement wildcard matching by listing branches
         const branchName = branchPattern;
 
+        const normalizedProtectionRules = this.normalizeProtectionRules(baseProtectionRules);
+
+        const { configured: hasRequiredReviewsConfig, value: requiredReviewsConfig } =
+          this.getRequiredReviewsConfig(normalizedProtectionRules);
+
         // First check if the branch exists by trying to get it
         try {
           await context.client.getBranch(owner, repo, branchName);
@@ -56,20 +61,24 @@ export class BranchProtectionCheck extends BaseCheck {
           continue;
         }
 
-        const currentProtection = await context.client.getBranchProtection(owner, repo, branchName);
+        const currentProtection = await context.client.getBranchProtection(
+          owner,
+          repo,
+          branchName
+        );
         (details.branches as Record<string, unknown>)[branchName] = {
           current: currentProtection,
-          expected: protectionRules,
+          expected: normalizedProtectionRules,
         };
 
         if (!currentProtection) {
-          if (Object.keys(protectionRules).length > 0) {
+          if (Object.keys(baseProtectionRules).length > 0) {
             issues.push(`Branch '${branchName}' should have protection rules but has none`);
             if (details.actions_needed) {
               details.actions_needed.push({
                 action: 'enable_protection',
                 branch: branchName,
-                rules: protectionRules,
+                rules: normalizedProtectionRules,
               });
             }
           }
@@ -77,9 +86,9 @@ export class BranchProtectionCheck extends BaseCheck {
         }
 
         // Check required status checks
-        if (protectionRules.required_status_checks !== undefined) {
+        if (baseProtectionRules.required_status_checks !== undefined) {
           const current = currentProtection.required_status_checks;
-          const expected = protectionRules.required_status_checks as {
+          const expected = baseProtectionRules.required_status_checks as {
             strict?: boolean;
             contexts?: string[];
           } | null;
@@ -129,12 +138,12 @@ export class BranchProtectionCheck extends BaseCheck {
 
         // Check enforce admins
         if (
-          protectionRules.enforce_admins !== undefined &&
+          baseProtectionRules.enforce_admins !== undefined &&
           (currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)
-            ?.enabled !== protectionRules.enforce_admins
+            ?.enabled !== baseProtectionRules.enforce_admins
         ) {
           issues.push(
-            `Branch '${branchName}' admin enforcement should be ${protectionRules.enforce_admins ? 'enabled' : 'disabled'} ` +
+            `Branch '${branchName}' admin enforcement should be ${baseProtectionRules.enforce_admins ? 'enabled' : 'disabled'} ` +
               `but is ${(currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)?.enabled ? 'enabled' : 'disabled'}`
           );
           if (details.actions_needed) {
@@ -142,15 +151,21 @@ export class BranchProtectionCheck extends BaseCheck {
               action: 'update_protection',
               branch: branchName,
               field: 'enforce_admins',
-              expected: protectionRules.enforce_admins,
+              expected: baseProtectionRules.enforce_admins,
             });
           }
         }
 
         // Check required pull request reviews
-        if (protectionRules.required_pull_request_reviews !== undefined) {
+        if (hasRequiredReviewsConfig) {
           const current = currentProtection.required_pull_request_reviews;
-          const expected = protectionRules.required_pull_request_reviews as {
+          const expected = requiredReviewsConfig as {
+            required_approving_review_count?: number;
+            dismiss_stale_reviews?: boolean;
+            require_code_owner_reviews?: boolean;
+          } | null;
+          const normalizedExpected = normalizedProtectionRules
+            .required_pull_request_reviews as {
             required_approving_review_count?: number;
             dismiss_stale_reviews?: boolean;
             require_code_owner_reviews?: boolean;
@@ -163,7 +178,7 @@ export class BranchProtectionCheck extends BaseCheck {
                 action: 'update_protection',
                 branch: branchName,
                 field: 'required_pull_request_reviews',
-                expected: expected,
+                expected: normalizedExpected,
               });
             }
           } else if (current && expected) {
@@ -213,9 +228,9 @@ export class BranchProtectionCheck extends BaseCheck {
         }
 
         // Check restrictions
-        if (protectionRules.restrictions !== undefined) {
+        if (baseProtectionRules.restrictions !== undefined) {
           const current = currentProtection.restrictions;
-          const expected = protectionRules.restrictions;
+          const expected = baseProtectionRules.restrictions;
 
           if (!current && expected) {
             issues.push(`Branch '${branchName}' should have push restrictions`);
@@ -381,23 +396,84 @@ export class BranchProtectionCheck extends BaseCheck {
     }
   }
 
+  private getRequiredReviewsConfig(
+    config: Record<string, unknown>
+  ): {
+    configured: boolean;
+    value:
+      | {
+          required_approving_review_count?: number;
+          dismiss_stale_reviews?: boolean;
+          require_code_owner_reviews?: boolean;
+          require_last_push_approval?: boolean;
+        }
+      | null;
+  } {
+    const reviewsConfig = config as {
+      required_reviews?: unknown;
+      required_pull_request_reviews?: unknown;
+    };
+
+    if (Object.prototype.hasOwnProperty.call(reviewsConfig, 'required_reviews')) {
+      return {
+        configured: true,
+        value: reviewsConfig.required_reviews as {
+          required_approving_review_count?: number;
+          dismiss_stale_reviews?: boolean;
+          require_code_owner_reviews?: boolean;
+          require_last_push_approval?: boolean;
+        } | null,
+      };
+    }
+
+    if (Object.prototype.hasOwnProperty.call(reviewsConfig, 'required_pull_request_reviews')) {
+      return {
+        configured: true,
+        value: reviewsConfig.required_pull_request_reviews as {
+          required_approving_review_count?: number;
+          dismiss_stale_reviews?: boolean;
+          require_code_owner_reviews?: boolean;
+          require_last_push_approval?: boolean;
+        } | null,
+      };
+    }
+
+    return { configured: false, value: null };
+  }
+
+  private normalizeProtectionRules(config: Record<string, unknown>): Record<string, unknown> {
+    const normalizedConfig: Record<string, unknown> = { ...config };
+    const reviewsConfig = normalizedConfig as {
+      required_reviews?: unknown;
+      required_pull_request_reviews?: unknown;
+    };
+
+    if (Object.prototype.hasOwnProperty.call(reviewsConfig, 'required_reviews')) {
+      reviewsConfig.required_pull_request_reviews = reviewsConfig.required_reviews;
+      delete reviewsConfig.required_reviews;
+    }
+
+    return normalizedConfig;
+  }
+
   private buildProtectionRules(config: Record<string, unknown>): Record<string, unknown> {
+    const normalizedConfig = this.normalizeProtectionRules(config);
     const rules: Record<string, unknown> = {};
 
-    if (config.required_status_checks !== undefined) {
-      rules.required_status_checks = config.required_status_checks;
+    if (normalizedConfig.required_status_checks !== undefined) {
+      rules.required_status_checks = normalizedConfig.required_status_checks;
     }
 
-    if (config.enforce_admins !== undefined) {
-      rules.enforce_admins = config.enforce_admins;
+    if (normalizedConfig.enforce_admins !== undefined) {
+      rules.enforce_admins = normalizedConfig.enforce_admins;
     }
 
-    if (config.required_pull_request_reviews !== undefined) {
-      rules.required_pull_request_reviews = config.required_pull_request_reviews;
+    if (normalizedConfig.required_pull_request_reviews !== undefined) {
+      rules.required_pull_request_reviews = normalizedConfig.required_pull_request_reviews;
     }
 
-    if (config.restrictions !== undefined) {
-      rules.restrictions = config.restrictions;
+    if (normalizedConfig.restrictions !== undefined) {
+      rules.restrictions = normalizedConfig.restrictions;
     }
 
     return rules;

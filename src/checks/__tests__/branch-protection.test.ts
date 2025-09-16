@@ -53,7 +53,7 @@ const mockConfig: Record<string, unknown> = {
         contexts: ['ci/tests', 'ci/lint'],
       },
       enforce_admins: true,
-      required_pull_request_reviews: {
+      required_reviews: {
         required_approving_review_count: 2,
         dismiss_stale_reviews: true,
         require_code_owner_reviews: true,
@@ -80,7 +80,7 @@ const mockConfigWithDevelop: Record<string, unknown> = {
         contexts: ['ci/tests', 'ci/lint'],
       },
       enforce_admins: true,
-      required_pull_request_reviews: {
+      required_reviews: {
         required_approving_review_count: 2,
         dismiss_stale_reviews: true,
         require_code_owner_reviews: true,
@@ -209,10 +209,17 @@ describe('BranchProtectionCheck', () => {
         const branchProtection = (mockConfig.defaults as Record<string, unknown>)
           .branch_protection as Record<string, unknown>;
         const { patterns: _p, ...protectionRules } = branchProtection;
+        const normalizedRules = {
+          ...protectionRules,
+          required_pull_request_reviews: (
+            protectionRules as Record<string, unknown>
+          )['required_reviews'],
+        } as Record<string, unknown>;
+        delete normalizedRules['required_reviews'];
         expect(result.details?.actions_needed).toContainEqual({
           action: 'enable_protection',
           branch: 'main',
-          rules: protectionRules,
+          rules: normalizedRules,
         });
       });
 
@@ -314,7 +321,7 @@ describe('BranchProtectionCheck', () => {
               patterns: ['main'],
               required_status_checks: null, // should not require status checks
               enforce_admins: true,
-              required_pull_request_reviews: {
+              required_reviews: {
                 required_approving_review_count: 2,
                 dismiss_stale_reviews: true,
                 require_code_owner_reviews: true,
@@ -413,7 +420,7 @@ describe('BranchProtectionCheck', () => {
           action: 'update_protection',
           branch: 'main',
           field: 'required_pull_request_reviews',
-          expected: mainProtection.required_pull_request_reviews,
+          expected: mainProtection.required_reviews,
         });
       });
 
@@ -489,7 +496,7 @@ describe('BranchProtectionCheck', () => {
                 contexts: ['ci/tests', 'ci/lint'],
               },
               enforce_admins: true,
-              required_pull_request_reviews: null, // should not require reviews
+              required_reviews: null, // should not require reviews
               restrictions: {
                 users: ['admin'],
                 teams: ['maintainers'],
@@ -556,7 +563,7 @@ describe('BranchProtectionCheck', () => {
                 contexts: ['ci/tests', 'ci/lint'],
               },
               enforce_admins: true,
-              required_pull_request_reviews: {
+              required_reviews: {
                 required_approving_review_count: 2,
                 dismiss_stale_reviews: true,
                 require_code_owner_reviews: true,
@@ -705,7 +712,7 @@ describe('BranchProtectionCheck', () => {
       expect(mockClient.updateBranchProtection).toHaveBeenCalledWith('owner', 'test-repo', 'main', {
         required_status_checks: mainProtection.required_status_checks,
         enforce_admins: mainProtection.enforce_admins,
-        required_pull_request_reviews: mainProtection.required_pull_request_reviews,
+        required_pull_request_reviews: mainProtection.required_reviews,
         restrictions: mainProtection.restrictions,
       });
       expect(result.compliant).toBe(true);
@@ -831,7 +838,7 @@ describe('BranchProtectionCheck', () => {
       const config = {
         required_status_checks: { strict: true, contexts: ['test'] },
         enforce_admins: true,
-        required_pull_request_reviews: { required_approving_review_count: 1 },
+        required_reviews: { required_approving_review_count: 1 },
         restrictions: { users: ['admin'] },
       };
 
