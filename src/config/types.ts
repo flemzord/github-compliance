@@ -177,9 +177,6 @@ export interface RepositoryGeneralSettingsConfig {
   delete_branch_on_merge?: boolean;
   allow_update_branch?: boolean;
   use_squash_pr_title_as_default?: boolean;
-  allow_merge_commit?: boolean;
-  allow_squash_merge?: boolean;
-  allow_rebase_merge?: boolean;
 }
 
 export interface RepositoryTemplatesConfig {

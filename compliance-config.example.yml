@@ -59,9 +59,6 @@ defaults:
       delete_branch_on_merge: true
       allow_update_branch: true
       use_squash_pr_title_as_default: true
-      allow_merge_commit: false
-      allow_squash_merge: true
-      allow_rebase_merge: false
     templates:
       require_issue_templates: true
       require_pr_template: true

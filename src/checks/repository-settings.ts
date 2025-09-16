@@ -28,6 +28,8 @@ export class RepositorySettingsCheck extends BaseCheck {
     '.github/PULL_REQUEST_TEMPLATE.md',
     'PULL_REQUEST_TEMPLATE.md',
     '.github/PULL_REQUEST_TEMPLATE',
+    'docs/PULL_REQUEST_TEMPLATE.md',
+    'docs/pull_request_template.md',
   ];
 
   shouldRun(context: CheckContext): boolean {
@@ -243,24 +245,7 @@ export class RepositorySettingsCheck extends BaseCheck {
         ) {
           updateData.use_squash_pr_title_as_default = config.general.use_squash_pr_title_as_default;
         }
-        if (
-          config.general.allow_merge_commit !== undefined &&
-          repository.allow_merge_commit !== config.general.allow_merge_commit
-        ) {
-          updateData.allow_merge_commit = config.general.allow_merge_commit;
-        }
-        if (
-          config.general.allow_squash_merge !== undefined &&
-          repository.allow_squash_merge !== config.general.allow_squash_merge
-        ) {
-          updateData.allow_squash_merge = config.general.allow_squash_merge;
-        }
-        if (
-          config.general.allow_rebase_merge !== undefined &&
-          repository.allow_rebase_merge !== config.general.allow_rebase_merge
-        ) {
-          updateData.allow_rebase_merge = config.general.allow_rebase_merge;
-        }
+        // Merge method settings are handled by the dedicated merge-methods check
       }
 
       if (config.visibility) {
@@ -319,9 +304,6 @@ export class RepositorySettingsCheck extends BaseCheck {
       delete_branch_on_merge: repository.delete_branch_on_merge,
       allow_update_branch: repository.allow_update_branch,
       use_squash_pr_title_as_default: repository.use_squash_pr_title_as_default,
-      allow_merge_commit: repository.allow_merge_commit,
-      allow_squash_merge: repository.allow_squash_merge,
-      allow_rebase_merge: repository.allow_rebase_merge,
     };
   }
 

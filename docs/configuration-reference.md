@@ -289,9 +289,6 @@ Validate and enforce repository-level options such as feature toggles, visibilit
 | `delete_branch_on_merge` | `boolean` | Delete head branches automatically after merging |
 | `allow_update_branch` | `boolean` | Allow maintainers to update pull request branches |
 | `use_squash_pr_title_as_default` | `boolean` | Use the pull request title as the default squash commit message |
-| `allow_merge_commit` | `boolean` | Allow merge commits |
-| `allow_squash_merge` | `boolean` | Allow squash merging |
-| `allow_rebase_merge` | `boolean` | Allow rebase merging |
 
 #### Template Requirements (`defaults.repository_settings.templates`)
 
@@ -320,9 +317,6 @@ defaults:
       delete_branch_on_merge: true
       allow_update_branch: true
       use_squash_pr_title_as_default: true
-      allow_merge_commit: false
-      allow_squash_merge: true
-      allow_rebase_merge: false
     templates:
       require_issue_templates: true
       require_pr_template: true
@@ -499,9 +493,6 @@ defaults:
       delete_branch_on_merge: true
       allow_update_branch: true
       use_squash_pr_title_as_default: true
-      allow_merge_commit: false
-      allow_squash_merge: true
-      allow_rebase_merge: false
     templates:
       require_issue_templates: true
       require_pr_template: true

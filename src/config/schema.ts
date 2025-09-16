@@ -262,7 +262,16 @@ const RepositoryVisibilitySchema = z
     allow_public: z.boolean().optional(),
     enforce_private: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.allow_public && value.enforce_private) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'allow_public cannot be true when enforce_private is true',
+        path: ['allow_public'],
+      });
+    }
+  });
 
 const RepositoryGeneralSettingsSchema = z
   .object({
@@ -270,9 +279,6 @@ const RepositoryGeneralSettingsSchema = z
     delete_branch_on_merge: z.boolean().optional(),
     allow_update_branch: z.boolean().optional(),
     use_squash_pr_title_as_default: z.boolean().optional(),
-    allow_merge_commit: z.boolean().optional(),
-    allow_squash_merge: z.boolean().optional(),
-    allow_rebase_merge: z.boolean().optional(),
   })
   .strict();
 

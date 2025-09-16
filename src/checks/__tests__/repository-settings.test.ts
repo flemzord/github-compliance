@@ -60,9 +60,6 @@ const baseConfig: ComplianceConfig = {
         delete_branch_on_merge: true,
         allow_update_branch: true,
         use_squash_pr_title_as_default: true,
-        allow_merge_commit: false,
-        allow_squash_merge: true,
-        allow_rebase_merge: false,
       },
       templates: {
         require_issue_templates: true,
@@ -116,9 +113,6 @@ describe('RepositorySettingsCheck', () => {
       delete_branch_on_merge: true,
       allow_update_branch: true,
       use_squash_pr_title_as_default: true,
-      allow_merge_commit: false,
-      allow_squash_merge: true,
-      allow_rebase_merge: false,
     });
     (mockClient.pathExists as jest.Mock).mockResolvedValue(true);
 
@@ -141,9 +135,6 @@ describe('RepositorySettingsCheck', () => {
       delete_branch_on_merge: false,
       allow_update_branch: false,
       use_squash_pr_title_as_default: false,
-      allow_merge_commit: true,
-      allow_squash_merge: false,
-      allow_rebase_merge: true,
       private: false,
       visibility: 'public',
     });
@@ -189,9 +180,6 @@ describe('RepositorySettingsCheck', () => {
       delete_branch_on_merge: true,
       allow_update_branch: true,
       use_squash_pr_title_as_default: true,
-      allow_merge_commit: false,
-      allow_squash_merge: true,
-      allow_rebase_merge: false,
       private: true,
       visibility: 'private',
     };
@@ -217,9 +205,6 @@ describe('RepositorySettingsCheck', () => {
         delete_branch_on_merge: true,
         allow_update_branch: true,
         use_squash_pr_title_as_default: true,
-        allow_merge_commit: false,
-        allow_squash_merge: true,
-        allow_rebase_merge: false,
         private: true,
       })
     );

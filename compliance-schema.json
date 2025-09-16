@@ -871,11 +871,26 @@
           "description": "Require repositories to be private"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "not": {
+            "properties": {
+              "allow_public": {
+                "const": true
+              },
+              "enforce_private": {
+                "const": true
+              }
+            },
+            "required": ["allow_public", "enforce_private"]
+          }
+        }
+      ]
     },
     "repository_general_settings": {
       "type": "object",
-      "description": "General repository options and merge settings",
+      "description": "General repository workflow preferences",
       "properties": {
         "allow_auto_merge": {
           "type": "boolean",
@@ -892,18 +907,6 @@
         "use_squash_pr_title_as_default": {
           "type": "boolean",
           "description": "Default squash commit title to pull request title"
-        },
-        "allow_merge_commit": {
-          "type": "boolean",
-          "description": "Allow merge commits"
-        },
-        "allow_squash_merge": {
-          "type": "boolean",
-          "description": "Allow squash merging"
-        },
-        "allow_rebase_merge": {
-          "type": "boolean",
-          "description": "Allow rebase merging"
         }
       },
       "additionalProperties": false
