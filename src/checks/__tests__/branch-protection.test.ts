@@ -211,11 +211,10 @@ describe('BranchProtectionCheck', () => {
         const { patterns: _p, ...protectionRules } = branchProtection;
         const normalizedRules = {
           ...protectionRules,
-          required_pull_request_reviews: (
-            protectionRules as Record<string, unknown>
-          )['required_reviews'],
+          required_pull_request_reviews: (protectionRules as Record<string, unknown>)
+            .required_reviews,
         } as Record<string, unknown>;
-        delete normalizedRules['required_reviews'];
+        delete (normalizedRules as Record<string, unknown>).required_reviews;
         expect(result.details?.actions_needed).toContainEqual({
           action: 'enable_protection',
           branch: 'main',

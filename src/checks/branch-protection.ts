@@ -51,6 +51,24 @@ export class BranchProtectionCheck extends BaseCheck {
         const { configured: hasRequiredReviewsConfig, value: requiredReviewsConfig } =
           this.getRequiredReviewsConfig(normalizedProtectionRules);
 
+        const enqueueStatusCheckUpdate = () => {
+          if (!details.actions_needed) return;
+          const alreadyQueued = details.actions_needed.some(
+            (action) =>
+              action.action === 'update_protection' &&
+              action.branch === branchName &&
+              action.field === 'required_status_checks'
+          );
+          if (!alreadyQueued) {
+            details.actions_needed.push({
+              action: 'update_protection',
+              branch: branchName,
+              field: 'required_status_checks',
+              expected: normalizedProtectionRules.required_status_checks,
+            });
+          }
+        };
+
         // First check if the branch exists by trying to get it
         try {
           await context.client.getBranch(owner, repo, branchName);
@@ -61,11 +79,7 @@ export class BranchProtectionCheck extends BaseCheck {
           continue;
         }
 
-        const currentProtection = await context.client.getBranchProtection(
-          owner,
-          repo,
-          branchName
-        );
+        const currentProtection = await context.client.getBranchProtection(owner, repo, branchName);
         (details.branches as Record<string, unknown>)[branchName] = {
           current: currentProtection,
           expected: normalizedProtectionRules,
@@ -110,6 +124,7 @@ export class BranchProtectionCheck extends BaseCheck {
                 `Branch '${branchName}' strict status checks should be ${expected.strict ? 'enabled' : 'disabled'} ` +
                   `but is ${current.strict ? 'enabled' : 'disabled'}`
               );
+              enqueueStatusCheckUpdate();
             }
 
             // Check required contexts
@@ -121,6 +136,17 @@ export class BranchProtectionCheck extends BaseCheck {
                 issues.push(
                   `Branch '${branchName}' missing required status check contexts: ${missingContexts.join(', ')}`
                 );
+                enqueueStatusCheckUpdate();
+              }
+
+              const unexpectedContexts = (current.contexts || []).filter(
+                (ctx: string) => !expected.contexts?.includes(ctx)
+              );
+              if (unexpectedContexts.length > 0) {
+                issues.push(
+                  `Branch '${branchName}' has unexpected status check contexts: ${unexpectedContexts.join(', ')}`
+                );
+                enqueueStatusCheckUpdate();
               }
             }
           } else if (current && !expected) {
@@ -164,8 +190,7 @@ export class BranchProtectionCheck extends BaseCheck {
             dismiss_stale_reviews?: boolean;
             require_code_owner_reviews?: boolean;
           } | null;
-          const normalizedExpected = normalizedProtectionRules
-            .required_pull_request_reviews as {
+          const normalizedExpected = normalizedProtectionRules.required_pull_request_reviews as {
             required_approving_review_count?: number;
             dismiss_stale_reviews?: boolean;
             require_code_owner_reviews?: boolean;
@@ -396,25 +421,21 @@ export class BranchProtectionCheck extends BaseCheck {
     }
   }
 
-  private getRequiredReviewsConfig(
-    config: Record<string, unknown>
-  ): {
+  private getRequiredReviewsConfig(config: Record<string, unknown>): {
     configured: boolean;
-    value:
-      | {
-          required_approving_review_count?: number;
-          dismiss_stale_reviews?: boolean;
-          require_code_owner_reviews?: boolean;
-          require_last_push_approval?: boolean;
-        }
-      | null;
+    value: {
+      required_approving_review_count?: number;
+      dismiss_stale_reviews?: boolean;
+      require_code_owner_reviews?: boolean;
+      require_last_push_approval?: boolean;
+    } | null;
   } {
     const reviewsConfig = config as {
       required_reviews?: unknown;
       required_pull_request_reviews?: unknown;
     };
 
-    if (Object.prototype.hasOwnProperty.call(reviewsConfig, 'required_reviews')) {
+    if ('required_reviews' in reviewsConfig) {
       return {
         configured: true,
         value: reviewsConfig.required_reviews as {
@@ -426,7 +447,7 @@ export class BranchProtectionCheck extends BaseCheck {
       };
     }
 
-    if (Object.prototype.hasOwnProperty.call(reviewsConfig, 'required_pull_request_reviews')) {
+    if ('required_pull_request_reviews' in reviewsConfig) {
       return {
         configured: true,
         value: reviewsConfig.required_pull_request_reviews as {
@@ -448,7 +469,7 @@ export class BranchProtectionCheck extends BaseCheck {
       required_pull_request_reviews?: unknown;
     };
 
-    if (Object.prototype.hasOwnProperty.call(reviewsConfig, 'required_reviews')) {
+    if ('required_reviews' in reviewsConfig) {
       reviewsConfig.required_pull_request_reviews = reviewsConfig.required_reviews;
       delete reviewsConfig.required_reviews;
     }
