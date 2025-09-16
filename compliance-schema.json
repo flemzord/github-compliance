@@ -88,10 +88,183 @@
         },
         "additionalProperties": false
       }
+    },
+    "cache": {
+      "$ref": "#/definitions/cache"
     }
   },
   "additionalProperties": false,
   "definitions": {
+    "cache": {
+      "type": "object",
+      "description": "Configures caching for GitHub API responses",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable or disable the caching layer"
+        },
+        "storage": {
+          "type": "string",
+          "enum": ["memory"],
+          "description": "Storage backend for cache entries"
+        },
+        "storagePath": {
+          "type": "string",
+          "description": "Filesystem path when using the filesystem cache backend"
+        },
+        "maxSize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum cache size in megabytes"
+        },
+        "ttl": {
+          "$ref": "#/definitions/cache_ttl"
+        },
+        "adaptive": {
+          "$ref": "#/definitions/cache_adaptive"
+        },
+        "predictive": {
+          "$ref": "#/definitions/cache_predictive"
+        },
+        "etag": {
+          "$ref": "#/definitions/cache_feature_toggle"
+        },
+        "compression": {
+          "$ref": "#/definitions/cache_compression"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cache_ttl": {
+      "type": "object",
+      "description": "Time-to-live configuration per cached resource (seconds)",
+      "properties": {
+        "default": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Fallback TTL when no specific value is provided"
+        },
+        "repositoryList": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for repository listings"
+        },
+        "repository": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for repository details"
+        },
+        "branch": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for branch metadata"
+        },
+        "branchProtection": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for branch protection rules"
+        },
+        "collaborators": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for collaborator listings"
+        },
+        "teamPermissions": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for team permission listings"
+        },
+        "securitySettings": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for security configuration data"
+        },
+        "vulnerabilityAlerts": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for Dependabot vulnerability alerts"
+        },
+        "currentUser": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "TTL for authenticated user information"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cache_feature_toggle": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Feature toggle switch"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cache_adaptive": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/cache_feature_toggle"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "minTTL": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum allowed TTL when adaptive caching is enabled"
+            },
+            "maxTTL": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum allowed TTL when adaptive caching is enabled"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "cache_predictive": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/cache_feature_toggle"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Threshold for predictive cache pre-warming"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "cache_compression": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/cache_feature_toggle"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9,
+              "description": "Compression level for persisted cache entries"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "merge_methods": {
       "type": "object",
       "description": "Controls which merge strategies are allowed for pull requests",

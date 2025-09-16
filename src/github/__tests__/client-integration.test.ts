@@ -1,3 +1,5 @@
+import type { CacheConfig } from '../../cache';
+import { CacheManager } from '../../cache';
 import { type Logger, resetLogger, setLogger } from '../../logging';
 import type { TestErrorWithStatus, TestOctokit } from '../../test/test-types';
 import { GitHubClient } from '../client';
@@ -13,17 +15,26 @@ const mockLogger: jest.Mocked<Logger> = {
 };
 
 // Helper to create a mock GitHubClient with custom octokit
-const createMockClient = (octokitMock: {
-  rest: Record<string, unknown>;
-  paginate?: { iterator: jest.Mock };
-}) => {
-  const client = new GitHubClient({ token: 'test-token' });
+const createMockClient = (
+  octokitMock: {
+    rest: Record<string, unknown>;
+    paginate?: unknown;
+  },
+  options?: { cache?: CacheConfig | CacheManager }
+) => {
+  const client = new GitHubClient({
+    token: 'test-token',
+    ...(options?.cache && { cache: options.cache }),
+  });
+  const paginate =
+    octokitMock.paginate ||
+    Object.assign(jest.fn(), {
+      iterator: jest.fn(),
+    });
   const completeOctokit: TestOctokit = {
     constructor: { name: 'Octokit' },
     rest: octokitMock.rest,
-    paginate: octokitMock.paginate || {
-      iterator: jest.fn(),
-    },
+    paginate: paginate as unknown as TestOctokit['paginate'],
   };
   (client as unknown as { octokit: TestOctokit }).octokit = completeOctokit;
   return client;
@@ -659,6 +670,45 @@ describe('GitHubClient Integration Tests', () => {
       );
     });
 
+    it('should handle getSecuritySettings 403 errors via status code', async () => {
+      const client = createMockClient({
+        rest: {
+          secretScanning: {
+            getAlert: jest.fn().mockRejectedValue({ status: 403 }),
+          },
+          repos: {
+            checkVulnerabilityAlerts: jest.fn().mockRejectedValue({ status: 403 }),
+          },
+        },
+      });
+
+      const settings = await client.getSecuritySettings('owner', 'repo');
+
+      expect(settings.secret_scanning).toEqual({ status: 'disabled' });
+      expect(settings.dependabot_alerts).toEqual({ enabled: false });
+      expect(mockLogger.debug).not.toHaveBeenCalled();
+    });
+
+    it('should handle getVulnerabilityAlerts 403 errors via status code', async () => {
+      const paginate = Object.assign(jest.fn().mockRejectedValue({ status: 403 }), {
+        iterator: jest.fn(),
+      });
+
+      const client = createMockClient({
+        rest: {
+          dependabot: {
+            listAlertsForRepo: jest.fn(),
+          },
+        },
+        paginate,
+      });
+
+      const alerts = await client.getVulnerabilityAlerts('owner', 'repo');
+
+      expect(alerts).toEqual([]);
+      expect(paginate).toHaveBeenCalled();
+    });
+
     it('should handle getRepository error with string message', async () => {
       const mockOctokit = {
         rest: {
@@ -1029,6 +1079,120 @@ describe('GitHubClient Integration Tests', () => {
         'Rate limit exceeded, retrying after 30 seconds. GET /repos/test/issues'
       );
       expect(result).toBe(true); // Should retry since retryCount < default 3
+    });
+  });
+
+  describe('Caching integration', () => {
+    const baseRepo = {
+      id: 1,
+      name: 'repo',
+      full_name: 'owner/repo',
+      private: false,
+      archived: false,
+      disabled: false,
+      fork: false,
+      default_branch: 'main',
+      updated_at: '2024-01-01T00:00:00Z',
+      pushed_at: '2024-01-01T00:00:00Z',
+      stargazers_count: 0,
+      forks_count: 0,
+      open_issues_count: 0,
+      size: 0,
+      language: 'TypeScript',
+    };
+
+    it('should cache repository lookups when enabled', async () => {
+      const getMock = jest.fn().mockResolvedValue({ data: { ...baseRepo } });
+      const client = createMockClient(
+        {
+          rest: {
+            repos: {
+              get: getMock,
+            },
+          },
+        },
+        { cache: { enabled: true, ttl: { repository: 60 } } }
+      );
+
+      const first = await client.getRepository('owner', 'repo');
+      const second = await client.getRepository('owner', 'repo');
+
+      expect(first.full_name).toBe('owner/repo');
+      expect(second.full_name).toBe('owner/repo');
+      expect(getMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should invalidate repository cache after an update', async () => {
+      const getMock = jest
+        .fn()
+        .mockResolvedValueOnce({ data: { ...baseRepo } })
+        .mockResolvedValueOnce({ data: { ...baseRepo, updated_at: '2024-01-02T00:00:00Z' } });
+      const updateMock = jest.fn().mockResolvedValue({ data: { ...baseRepo } });
+
+      const client = createMockClient(
+        {
+          rest: {
+            repos: {
+              get: getMock,
+              update: updateMock,
+            },
+          },
+        },
+        { cache: { enabled: true } }
+      );
+
+      await client.getRepository('owner', 'repo');
+      await client.updateRepository('owner', 'repo', { allow_merge_commit: true });
+      const refreshed = await client.getRepository('owner', 'repo');
+
+      expect(updateMock).toHaveBeenCalledTimes(1);
+      expect(getMock).toHaveBeenCalledTimes(2);
+      expect(refreshed.updated_at).toBe('2024-01-02T00:00:00Z');
+    });
+
+    it('should accept a CacheManager instance directly', async () => {
+      const manager = new CacheManager({ enabled: true, ttl: { repository: 60 } });
+      const getMock = jest.fn().mockResolvedValue({ data: { ...baseRepo } });
+
+      const client = createMockClient(
+        {
+          rest: {
+            repos: {
+              get: getMock,
+            },
+          },
+        },
+        { cache: manager }
+      );
+
+      await client.getRepository('owner', 'repo');
+      await client.getRepository('owner', 'repo');
+
+      const stats = manager.getStats();
+      expect(stats.misses).toBe(1);
+      expect(stats.hits).toBe(1);
+      expect(getMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should cache current user independently of organization context', async () => {
+      const getAuthenticated = jest.fn().mockResolvedValue({ data: { login: 'tester' } });
+      const client = createMockClient(
+        {
+          rest: {
+            users: {
+              getAuthenticated,
+            },
+          },
+        },
+        { cache: { enabled: true, ttl: { currentUser: 60 } } }
+      );
+
+      client.setOwner('org-one');
+      await client.getCurrentUser();
+      client.setOwner('org-two');
+      await client.getCurrentUser();
+
+      expect(getAuthenticated).toHaveBeenCalledTimes(1);
     });
   });
 });

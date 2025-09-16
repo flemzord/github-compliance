@@ -75,6 +75,54 @@ const ConfigUserPermissionSchema = z.object({
   permission: z.enum(['read', 'triage', 'write', 'maintain', 'admin', 'push']),
 });
 
+const CacheTtlSchema = z
+  .object({
+    default: z.number().int().positive().optional(),
+    repositoryList: z.number().int().positive().optional(),
+    repository: z.number().int().positive().optional(),
+    branch: z.number().int().positive().optional(),
+    branchProtection: z.number().int().positive().optional(),
+    collaborators: z.number().int().positive().optional(),
+    teamPermissions: z.number().int().positive().optional(),
+    securitySettings: z.number().int().positive().optional(),
+    vulnerabilityAlerts: z.number().int().positive().optional(),
+    currentUser: z.number().int().positive().optional(),
+  })
+  .strict();
+
+const CacheFeatureToggleSchema = z
+  .object({
+    enabled: z.boolean(),
+  })
+  .strict();
+
+const CacheAdaptiveSchema = CacheFeatureToggleSchema.extend({
+  minTTL: z.number().int().positive().optional(),
+  maxTTL: z.number().int().positive().optional(),
+});
+
+const CachePredictiveSchema = CacheFeatureToggleSchema.extend({
+  threshold: z.number().min(0).max(1).optional(),
+});
+
+const CacheCompressionSchema = CacheFeatureToggleSchema.extend({
+  level: z.number().int().min(1).max(9).optional(),
+});
+
+const CacheSchema = z
+  .object({
+    enabled: z.boolean(),
+    storage: z.literal('memory').optional(),
+    storagePath: z.string().optional(),
+    maxSize: z.number().int().positive().optional(),
+    ttl: CacheTtlSchema.optional(),
+    adaptive: CacheAdaptiveSchema.optional(),
+    predictive: CachePredictiveSchema.optional(),
+    etag: CacheFeatureToggleSchema.optional(),
+    compression: CacheCompressionSchema.optional(),
+  })
+  .strict();
+
 const PermissionsSchema = z.object({
   remove_individual_collaborators: z.boolean(),
   teams: z.array(ConfigTeamPermissionSchema),
@@ -137,6 +185,7 @@ export const ComplianceConfigSchema = z.object({
   defaults: DefaultsSchema,
   rules: z.array(RuleSchema).optional(),
   checks: ChecksSchema.optional(),
+  cache: CacheSchema.optional(),
 });
 
 export type ComplianceConfig = z.infer<typeof ComplianceConfigSchema>;

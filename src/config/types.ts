@@ -1,3 +1,5 @@
+import type { CacheConfig } from '../cache';
+
 export interface MergeMethods {
   allow_merge_commit: boolean;
   allow_squash_merge: boolean;
@@ -111,4 +113,5 @@ export interface ComplianceConfig {
   defaults: Defaults;
   rules?: Rule[];
   checks?: Checks;
+  cache?: CacheConfig;
 }

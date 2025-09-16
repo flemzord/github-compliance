@@ -70,6 +70,13 @@ rules:
 
 checks:
   enabled: ["merge-methods", "team-permissions", "branch-protection"]
+
+cache:
+  enabled: true
+  storage: memory
+  ttl:
+    default: 600
+    repository: 1800
 `;
 
 describe('Config validation', () => {
@@ -109,6 +116,7 @@ describe('Config validation', () => {
       expect(config.defaults.branch_protection?.patterns).toEqual(['main', 'release/v*']);
       expect(config.rules).toHaveLength(2);
       expect(config.checks?.enabled).toContain('merge-methods');
+      expect(config.cache?.enabled).toBe(true);
     });
 
     it('should reject invalid YAML syntax', async () => {
@@ -306,6 +314,28 @@ defaults:
         // Restore original
         require('js-yaml').load = originalLoad;
       }
+    });
+
+    it('should reject unsupported cache storage values', async () => {
+      const invalidCacheConfig = `
+version: 1
+defaults: {}
+cache:
+  enabled: true
+  storage: filesystem
+`;
+
+      await expect(validateFromString(invalidCacheConfig)).rejects.toThrow(ConfigValidationError);
+
+      const redisCacheConfig = `
+version: 1
+defaults: {}
+cache:
+  enabled: true
+  storage: redis
+`;
+
+      await expect(validateFromString(redisCacheConfig)).rejects.toThrow(ConfigValidationError);
     });
 
     it('should handle ZodError with empty path', async () => {

@@ -1,3 +1,7 @@
+import type { CacheConfig, CacheManager } from '../cache';
+
+export type GitHubClientCacheOptions = CacheConfig | CacheManager;
+
 export interface Repository {
   id: number;
   name: string;
@@ -108,6 +112,7 @@ export interface GitHubClientOptions {
     retries: number;
     retryDelay: number;
   };
+  cache?: GitHubClientCacheOptions;
 }
 
 // Re-export GitHubClient class from client module

@@ -157,6 +157,7 @@ function getFieldContext(path: string): string {
     organization: 'The GitHub organization name to apply compliance rules to',
     rules: 'Repository-specific overrides based on patterns or criteria',
     checks: 'List of compliance checks to run (deprecated - checks are determined by defaults)',
+    cache: 'Configures caching for GitHub API responses to reduce rate limit usage',
   };
 
   // Check for exact matches first
