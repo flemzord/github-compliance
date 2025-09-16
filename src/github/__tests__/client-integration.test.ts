@@ -1,5 +1,5 @@
-import { CacheManager } from '../../cache';
 import type { CacheConfig } from '../../cache';
+import { CacheManager } from '../../cache';
 import { type Logger, resetLogger, setLogger } from '../../logging';
 import type { TestErrorWithStatus, TestOctokit } from '../../test/test-types';
 import { GitHubClient } from '../client';
