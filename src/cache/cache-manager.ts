@@ -11,19 +11,98 @@ import type {
   CacheTtlConfig,
 } from './types';
 
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value);
+function normalizeForStableStringify(value: unknown, seen: WeakSet<object>): unknown {
+  if (value === null) {
+    return null;
+  }
+
+  const valueType = typeof value;
+
+  if (valueType === 'number' || valueType === 'boolean') {
+    return value;
+  }
+
+  if (valueType === 'string') {
+    return value;
+  }
+
+  if (valueType === 'bigint') {
+    return (value as bigint).toString();
+  }
+
+  if (valueType === 'undefined') {
+    return { __type: 'undefined' };
+  }
+
+  if (valueType === 'symbol') {
+    return { __type: 'symbol', value: String(value) };
+  }
+
+  if (valueType === 'function') {
+    const fn = value as (...args: unknown[]) => unknown;
+    return { __type: 'function', value: fn.name || 'anonymous' };
+  }
+
+  if (value instanceof Date) {
+    return { __type: 'Date', value: value.toISOString() };
+  }
+
+  if (value instanceof RegExp) {
+    return { __type: 'RegExp', value: value.toString() };
   }
 
   if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    return value.map((item) => normalizeForStableStringify(item, seen));
   }
 
-  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
-  return `{${entries.map(([key, val]) => `${JSON.stringify(key)}:${stableStringify(val)}`).join(',')}}`;
+  if (value instanceof Set) {
+    const normalizedItems = [...value].map((item) => normalizeForStableStringify(item, seen));
+    normalizedItems.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    return { __type: 'Set', value: normalizedItems };
+  }
+
+  if (value instanceof Map) {
+    const normalizedEntries = [...value.entries()].map(([key, val]) => [
+      normalizeForStableStringify(key, seen),
+      normalizeForStableStringify(val, seen),
+    ]);
+    normalizedEntries.sort((a, b) => JSON.stringify(a[0]).localeCompare(JSON.stringify(b[0])));
+    return { __type: 'Map', value: normalizedEntries };
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    const view = value as ArrayBufferView;
+    const uint8Values = Array.from(
+      new Uint8Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength))
+    );
+    return { __type: view.constructor.name, value: uint8Values };
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return { __type: 'ArrayBuffer', value: Array.from(new Uint8Array(value)) };
+  }
+
+  if (valueType === 'object') {
+    if (seen.has(value as object)) {
+      return { __type: 'Circular' };
+    }
+    seen.add(value as object);
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+      a.localeCompare(b)
+    );
+    const normalizedObject: Record<string, unknown> = {};
+    for (const [key, val] of entries) {
+      normalizedObject[key] = normalizeForStableStringify(val, seen);
+    }
+    seen.delete(value as object);
+    return normalizedObject;
+  }
+
+  return String(value);
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(normalizeForStableStringify(value, new WeakSet()));
 }
 
 function normalizeDescriptor(descriptor: CacheKeyDescriptor): CacheKeyDescriptor {
@@ -55,6 +134,10 @@ function buildCacheKey(descriptor: CacheKeyDescriptor): string {
 
 function isExpired(record: CacheRecord<unknown>, now: number): boolean {
   return record.entry.expiresAt <= now;
+}
+
+function isValidTtl(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 export interface CacheManagerOptions {
@@ -173,17 +256,17 @@ export class CacheManager {
   }
 
   private resolveTTL(namespace: CacheNamespace, override?: number): number {
-    if (override !== undefined) {
+    if (override !== undefined && isValidTtl(override)) {
       return Math.max(1, override);
     }
 
     const ttlConfig = this.config.ttl;
     if (ttlConfig) {
       const namespaceTtl = ttlConfig[namespace as keyof CacheTtlConfig];
-      if (typeof namespaceTtl === 'number' && namespaceTtl > 0) {
+      if (isValidTtl(namespaceTtl)) {
         return namespaceTtl;
       }
-      if (typeof ttlConfig.default === 'number' && ttlConfig.default > 0) {
+      if (isValidTtl(ttlConfig.default)) {
         return ttlConfig.default;
       }
     }
@@ -197,10 +280,11 @@ export class CacheManager {
       return new MemoryCacheStorage();
     }
 
-    if (this.config.storage && this.config.storage !== 'memory') {
+    const configuredStorage = this.config.storage as string | undefined;
+    if (configuredStorage && configuredStorage !== 'memory') {
       if (this.warnAboutStorage) {
         logger.warning(
-          `Cache storage '${this.config.storage}' not yet supported, falling back to in-memory cache`
+          `Cache storage '${configuredStorage}' not yet supported, falling back to in-memory cache`
         );
       }
     }

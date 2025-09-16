@@ -17,6 +17,16 @@ import type {
 const ThrottledOctokit = Octokit.plugin(throttling);
 const SELF_CACHE_OWNER = '__self__';
 
+function isStatusError(error: unknown, status: number): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    typeof (error as { status?: unknown }).status === 'number' &&
+    (error as { status: number }).status === status
+  );
+}
+
 export class GitHubClient {
   private octokit: Octokit;
   private owner?: string;
@@ -102,7 +112,7 @@ export class GitHubClient {
     return this.fetchWithCache(
       {
         namespace: 'currentUser',
-        owner: this.getCacheOwner(),
+        owner: SELF_CACHE_OWNER,
         identifier: 'authenticated',
       },
       async () => {
@@ -512,7 +522,12 @@ export class GitHubClient {
             alert_number: 1,
           });
           settings.secret_scanning = { status: 'enabled' };
-        } catch {
+        } catch (error) {
+          if (!isStatusError(error, 403)) {
+            logger.debug(
+              `Could not determine secret scanning status for ${owner}/${repo}: ${error}`
+            );
+          }
           settings.secret_scanning = { status: 'disabled' };
         }
 
@@ -522,12 +537,16 @@ export class GitHubClient {
             repo,
           });
           settings.dependabot_alerts = { enabled: true };
-        } catch {
+        } catch (error) {
+          if (!isStatusError(error, 403)) {
+            logger.debug(
+              `Could not determine Dependabot alert status for ${owner}/${repo}: ${error}`
+            );
+          }
           settings.dependabot_alerts = { enabled: false };
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!message.includes('403')) {
+        if (!isStatusError(error, 403)) {
           logger.debug(`Could not fetch all security settings for ${owner}/${repo}: ${error}`);
         }
       }
@@ -558,7 +577,7 @@ export class GitHubClient {
 
         return alerts as unknown as VulnerabilityAlert[];
       } catch (error) {
-        if (error instanceof Error && error.message.includes('403')) {
+        if (isStatusError(error, 403)) {
           return [];
         }
         const message = error instanceof Error ? error.message : String(error);

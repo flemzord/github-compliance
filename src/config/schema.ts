@@ -112,7 +112,7 @@ const CacheCompressionSchema = CacheFeatureToggleSchema.extend({
 const CacheSchema = z
   .object({
     enabled: z.boolean(),
-    storage: z.enum(['memory', 'filesystem', 'redis']).optional(),
+    storage: z.literal('memory').optional(),
     storagePath: z.string().optional(),
     maxSize: z.number().int().positive().optional(),
     ttl: CacheTtlSchema.optional(),

@@ -18,7 +18,7 @@ const mockLogger: jest.Mocked<Logger> = {
 const createMockClient = (
   octokitMock: {
     rest: Record<string, unknown>;
-    paginate?: { iterator: jest.Mock };
+    paginate?: unknown;
   },
   options?: { cache?: CacheConfig | CacheManager }
 ) => {
@@ -26,12 +26,15 @@ const createMockClient = (
     token: 'test-token',
     ...(options?.cache && { cache: options.cache }),
   });
+  const paginate =
+    octokitMock.paginate ||
+    Object.assign(jest.fn(), {
+      iterator: jest.fn(),
+    });
   const completeOctokit: TestOctokit = {
     constructor: { name: 'Octokit' },
     rest: octokitMock.rest,
-    paginate: octokitMock.paginate || {
-      iterator: jest.fn(),
-    },
+    paginate: paginate as unknown as TestOctokit['paginate'],
   };
   (client as unknown as { octokit: TestOctokit }).octokit = completeOctokit;
   return client;
@@ -667,6 +670,45 @@ describe('GitHubClient Integration Tests', () => {
       );
     });
 
+    it('should handle getSecuritySettings 403 errors via status code', async () => {
+      const client = createMockClient({
+        rest: {
+          secretScanning: {
+            getAlert: jest.fn().mockRejectedValue({ status: 403 }),
+          },
+          repos: {
+            checkVulnerabilityAlerts: jest.fn().mockRejectedValue({ status: 403 }),
+          },
+        },
+      });
+
+      const settings = await client.getSecuritySettings('owner', 'repo');
+
+      expect(settings.secret_scanning).toEqual({ status: 'disabled' });
+      expect(settings.dependabot_alerts).toEqual({ enabled: false });
+      expect(mockLogger.debug).not.toHaveBeenCalled();
+    });
+
+    it('should handle getVulnerabilityAlerts 403 errors via status code', async () => {
+      const paginate = Object.assign(jest.fn().mockRejectedValue({ status: 403 }), {
+        iterator: jest.fn(),
+      });
+
+      const client = createMockClient({
+        rest: {
+          dependabot: {
+            listAlertsForRepo: jest.fn(),
+          },
+        },
+        paginate,
+      });
+
+      const alerts = await client.getVulnerabilityAlerts('owner', 'repo');
+
+      expect(alerts).toEqual([]);
+      expect(paginate).toHaveBeenCalled();
+    });
+
     it('should handle getRepository error with string message', async () => {
       const mockOctokit = {
         rest: {
@@ -1130,6 +1172,27 @@ describe('GitHubClient Integration Tests', () => {
       expect(stats.misses).toBe(1);
       expect(stats.hits).toBe(1);
       expect(getMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should cache current user independently of organization context', async () => {
+      const getAuthenticated = jest.fn().mockResolvedValue({ data: { login: 'tester' } });
+      const client = createMockClient(
+        {
+          rest: {
+            users: {
+              getAuthenticated,
+            },
+          },
+        },
+        { cache: { enabled: true, ttl: { currentUser: 60 } } }
+      );
+
+      client.setOwner('org-one');
+      await client.getCurrentUser();
+      client.setOwner('org-two');
+      await client.getCurrentUser();
+
+      expect(getAuthenticated).toHaveBeenCalledTimes(1);
     });
   });
 });

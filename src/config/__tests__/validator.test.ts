@@ -316,8 +316,8 @@ defaults:
       }
     });
 
-    it('should generate cache warnings for missing filesystem storage path', async () => {
-      const misconfiguredCache = `
+    it('should reject unsupported cache storage values', async () => {
+      const invalidCacheConfig = `
 version: 1
 defaults: {}
 cache:
@@ -325,15 +325,8 @@ cache:
   storage: filesystem
 `;
 
-      const config = await validateFromString(misconfiguredCache);
-      const warnings = validateDefaults(config);
+      await expect(validateFromString(invalidCacheConfig)).rejects.toThrow(ConfigValidationError);
 
-      expect(warnings).toContain(
-        'Cache storage is set to filesystem but no storagePath is provided'
-      );
-    });
-
-    it('should warn when redis cache storage is configured', async () => {
       const redisCacheConfig = `
 version: 1
 defaults: {}
@@ -342,12 +335,7 @@ cache:
   storage: redis
 `;
 
-      const config = await validateFromString(redisCacheConfig);
-      const warnings = validateDefaults(config);
-
-      expect(warnings).toContain(
-        'Redis cache storage is not currently supported; memory storage will be used'
-      );
+      await expect(validateFromString(redisCacheConfig)).rejects.toThrow(ConfigValidationError);
     });
 
     it('should handle ZodError with empty path', async () => {

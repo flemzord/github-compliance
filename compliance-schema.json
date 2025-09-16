@@ -106,7 +106,7 @@
         },
         "storage": {
           "type": "string",
-          "enum": ["memory", "filesystem", "redis"],
+          "enum": ["memory"],
           "description": "Storage backend for cache entries"
         },
         "storagePath": {

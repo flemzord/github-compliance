@@ -214,14 +214,5 @@ export function validateDefaults(config: ComplianceConfig): string[] {
     }
   }
 
-  if (config.cache?.enabled) {
-    if (config.cache.storage === 'filesystem' && !config.cache.storagePath) {
-      warnings.push('Cache storage is set to filesystem but no storagePath is provided');
-    }
-    if (config.cache.storage === 'redis') {
-      warnings.push('Redis cache storage is not currently supported; memory storage will be used');
-    }
-  }
-
   return warnings;
 }

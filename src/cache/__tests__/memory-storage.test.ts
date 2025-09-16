@@ -35,14 +35,16 @@ describe('MemoryCacheStorage', () => {
   });
 
   it('handles circular references when calculating size', () => {
-    const storage = new MemoryCacheStorage();
+    const storage = new MemoryCacheStorage(0.00025); // ~262 bytes
     const circular: { self?: unknown } = {};
     circular.self = circular;
-    const record = createRecord(circular);
+    const record = createRecord(circular, { lastAccessed: 1 }, { identifier: 'circular' });
 
     storage.set('circular', record);
+    storage.set('other', createRecord('other', { lastAccessed: 2 }, { identifier: 'other' }));
 
-    expect(storage.get('circular')).toBeDefined();
+    expect(storage.get('circular')).toBeUndefined();
+    expect(storage.get('other')).toBeDefined();
   });
 
   it('evicts least recently used entries when exceeding max size', () => {

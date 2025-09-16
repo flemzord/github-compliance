@@ -1,11 +1,14 @@
 import type { CacheRecord, CacheStorage } from './types';
 
+const FALLBACK_ENTRY_SIZE_BYTES = 1024;
+
 function calculateSize(record: CacheRecord<unknown>): number {
   try {
-    return Buffer.byteLength(JSON.stringify(record), 'utf8');
+    const size = Buffer.byteLength(JSON.stringify(record), 'utf8');
+    return Number.isFinite(size) && size > 0 ? size : FALLBACK_ENTRY_SIZE_BYTES;
   } catch {
-    // Fallback when value contains circular references
-    return 0;
+    // Fallback when value contains circular references or non-serializable data
+    return FALLBACK_ENTRY_SIZE_BYTES;
   }
 }
 

@@ -1,6 +1,6 @@
 import * as logging from '../../logging';
 import { CacheManager } from '../cache-manager';
-import type { CacheKeyDescriptor } from '../types';
+import type { CacheConfig, CacheKeyDescriptor } from '../types';
 
 describe('CacheManager', () => {
   const descriptor: CacheKeyDescriptor = {
@@ -108,10 +108,13 @@ describe('CacheManager', () => {
   });
 
   it('falls back to memory storage when unsupported storage is configured', async () => {
-    const manager = new CacheManager(
-      { enabled: true, storage: 'redis', ttl: { repository: 60 } },
-      { loggerWarnings: false }
-    );
+    const config = {
+      enabled: true,
+      storage: 'redis',
+      ttl: { repository: 60 },
+    } as unknown as CacheConfig;
+
+    const manager = new CacheManager(config, { loggerWarnings: false });
     const loader = jest.fn().mockResolvedValueOnce('value-1').mockResolvedValueOnce('value-2');
 
     const first = await manager.getOrLoad(descriptor, loader);
@@ -125,7 +128,12 @@ describe('CacheManager', () => {
   it('should warn when unsupported storage backend is configured', () => {
     const warnSpy = jest.spyOn(logging, 'warning').mockImplementation(() => undefined);
 
-    const manager = new CacheManager({ enabled: true, storage: 'filesystem' });
+    const config = {
+      enabled: true,
+      storage: 'filesystem',
+    } as unknown as CacheConfig;
+
+    const manager = new CacheManager(config);
 
     expect(manager.enabled).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
@@ -143,7 +151,16 @@ describe('CacheManager', () => {
         owner: 'OWNER',
         repo: 'REPO',
         identifier: 'details',
-        parameters: { b: 1, a: [2, { z: 3 }] },
+        parameters: {
+          b: 1,
+          a: [2, { z: 3 }],
+          map: new Map([
+            ['z', 3],
+            ['a', 1],
+          ]),
+          set: new Set([3, 1, 2]),
+          created: new Date('2024-01-01T00:00:00Z'),
+        },
       },
       loader
     );
@@ -154,7 +171,16 @@ describe('CacheManager', () => {
         owner: 'owner',
         repo: 'repo',
         identifier: 'details',
-        parameters: { a: [2, { z: 3 }], b: 1 },
+        parameters: {
+          a: [2, { z: 3 }],
+          b: 1,
+          map: new Map([
+            ['a', 1],
+            ['z', 3],
+          ]),
+          set: new Set([1, 2, 3]),
+          created: new Date('2024-01-01T00:00:00Z'),
+        },
       },
       loader
     );
@@ -168,6 +194,25 @@ describe('CacheManager', () => {
 
     await manager.getOrLoad(descriptor, loader);
     const refreshed = await manager.getOrLoad(descriptor, loader, { forceRefresh: true });
+
+    expect(refreshed).toBe('value-2');
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('should ignore invalid TTL overrides', async () => {
+    const manager = new CacheManager(
+      { enabled: true, ttl: { default: 1 } },
+      { loggerWarnings: false }
+    );
+    const loader = jest.fn().mockResolvedValueOnce('value-1').mockResolvedValueOnce('value-2');
+
+    let now = 0;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+
+    await manager.getOrLoad(descriptor, loader, { ttl: Number.POSITIVE_INFINITY });
+
+    now = 2_000; // default TTL of 1 second should cause refresh when override is invalid
+    const refreshed = await manager.getOrLoad(descriptor, loader);
 
     expect(refreshed).toBe('value-2');
     expect(loader).toHaveBeenCalledTimes(2);

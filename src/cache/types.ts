@@ -41,7 +41,7 @@ export interface CacheCompressionConfig extends CacheFeatureToggle {
 
 export interface CacheConfig {
   enabled: boolean;
-  storage?: 'memory' | 'filesystem' | 'redis';
+  storage?: 'memory';
   storagePath?: string;
   maxSize?: number;
   ttl?: CacheTtlConfig;
