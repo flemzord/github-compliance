@@ -17,6 +17,8 @@ export class CompactRenderer {
   private state: RenderState;
   private width: number;
   private intervalId: NodeJS.Timeout | undefined;
+  private originalStderr: typeof process.stderr.write | undefined;
+  private stderrBuffer: string[] = [];
 
   constructor() {
     this.width = process.stdout.columns || 80;
@@ -41,6 +43,9 @@ export class CompactRenderer {
     this.state.phase = 'processing';
     this.state.dirty = true;
 
+    // Capture stderr to prevent API error messages from appearing
+    this.captureStderr();
+
     // Start rendering loop with slower interval to reduce flickering
     this.intervalId = setInterval(() => {
       if (this.state.dirty) {
@@ -59,6 +64,9 @@ export class CompactRenderer {
     this.state.phase = 'completed';
     this.render();
     logUpdate.done();
+
+    // Restore stderr
+    this.restoreStderr();
   }
 
   updateProgress(current: number, total: number, repo?: string, check?: string): void {
@@ -208,5 +216,43 @@ export class CompactRenderer {
 
   clear(): void {
     logUpdate.clear();
+  }
+
+  private captureStderr(): void {
+    // Save the original stderr.write function
+    this.originalStderr = process.stderr.write.bind(process.stderr);
+
+    // Override stderr.write to capture and suppress output
+    // biome-ignore lint/suspicious/noExplicitAny: Node.js stream write signature requires any
+    process.stderr.write = (chunk: any, encoding?: any, callback?: any): boolean => {
+      // Capture the stderr output but don't display it
+      if (typeof chunk === 'string') {
+        // Filter out expected 403 errors and other noise
+        if (!chunk.includes('403') && !chunk.includes('GET /repos')) {
+          // Store only unexpected errors
+          this.stderrBuffer.push(chunk);
+        }
+      }
+
+      // Handle callback if provided
+      if (typeof encoding === 'function') {
+        encoding();
+      } else if (typeof callback === 'function') {
+        callback();
+      }
+
+      return true;
+    };
+  }
+
+  private restoreStderr(): void {
+    if (this.originalStderr) {
+      // Restore the original stderr.write
+      process.stderr.write = this.originalStderr;
+      this.originalStderr = undefined;
+
+      // Clear the buffer
+      this.stderrBuffer = [];
+    }
   }
 }
