@@ -1,7 +1,9 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/flemzord/github-compliance/main/compliance-schema.json
 # GitHub Compliance Configuration Example
 # This file defines the compliance rules for your GitHub organization
 
 version: 1
+organization: your-org-name  # Optional - can be overridden with --org flag
 
 # Default settings applied to all repositories
 defaults:
