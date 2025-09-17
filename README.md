@@ -239,6 +239,99 @@ npm run build
 npm run cli -- --config compliance.yml --token ghp_xxx
 ```
 
+### Adding a New Compliance Check
+
+To add a new compliance check to the project, follow these steps:
+
+1. **Create the check class** in `src/checks/`:
+   ```typescript
+   // src/checks/your-check.ts
+   import { BaseCheck, type CheckContext, type CheckResult } from './base';
+
+   export class YourCheck extends BaseCheck {
+     readonly name = 'your-check-name';
+     readonly description = 'Description of what your check validates';
+
+     shouldRun(context: CheckContext): boolean {
+       // Determine if this check should run for the repository
+       const config = this.getRepoConfig(context, 'your_config_key');
+       return config !== undefined;
+     }
+
+     async check(context: CheckContext): Promise<CheckResult> {
+       // Implement your validation logic
+       const { repository } = context;
+       const config = this.getRepoConfig(context, 'your_config_key');
+
+       // Perform checks and return result
+       if (/* check passes */) {
+         return this.createCompliantResult('Check passed successfully');
+       }
+
+       return this.createNonCompliantResult('Check failed: reason');
+     }
+
+     async fix(context: CheckContext): Promise<CheckResult> {
+       // Optional: Implement auto-fix logic
+       if (context.dryRun) {
+         return this.check(context);
+       }
+
+       // Apply fixes using context.client
+       // Return result with fixed: true if successful
+     }
+   }
+   ```
+
+2. **Register the check** in `src/runner/check-registry.ts`:
+   ```typescript
+   import { YourCheck } from '../checks/your-check';
+
+   const checkRegistry: CheckRegistry = {
+     // ... existing checks
+     'your-check-name': YourCheck,
+   };
+   ```
+
+3. **Define configuration types** in `src/config/types.ts`:
+   ```typescript
+   export interface YourCheckConfig {
+     // Define your configuration structure
+   }
+
+   export interface ComplianceDefaults {
+     // ... existing configs
+     your_config_key?: YourCheckConfig;
+   }
+   ```
+
+4. **Update the JSON Schema** in `compliance-schema.json`:
+   - Add your check configuration to the `defaults` properties
+   - Ensure proper validation rules are defined
+
+5. **Add tests** for your check in `src/checks/__tests__/your-check.test.ts`:
+   ```typescript
+   import { YourCheck } from '../your-check';
+
+   describe('YourCheck', () => {
+     it('should detect non-compliance', async () => {
+       // Test non-compliant scenarios
+     });
+
+     it('should pass for compliant repositories', async () => {
+       // Test compliant scenarios
+     });
+
+     it('should fix issues when not in dry-run mode', async () => {
+       // Test fix functionality if implemented
+     });
+   });
+   ```
+
+6. **Update documentation**:
+   - Add your check to the "Available Checks" table in this README
+   - Include configuration examples in the sample YAML
+
 For more details see [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ---
