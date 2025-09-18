@@ -10,12 +10,12 @@ import type { CheckRegistry } from './types';
  * Registry of all available compliance checks
  */
 const checkRegistry: CheckRegistry = {
+  'team-sync': TeamSyncCheck,
   'merge-methods': MergeMethodsCheck,
   'team-permissions': TeamPermissionsCheck,
   'branch-protection': BranchProtectionCheck,
   'security-scanning': SecurityScanningCheck,
   'archived-repos': ArchivedReposCheck,
-  'team-sync': TeamSyncCheck,
 };
 
 /**

@@ -9,12 +9,12 @@ import { getAvailableChecks, getCheck } from '../check-registry';
 describe('check-registry', () => {
   describe('getCheck', () => {
     it('should return the correct check class for valid check names', () => {
+      expect(getCheck('team-sync')).toBe(TeamSyncCheck);
       expect(getCheck('merge-methods')).toBe(MergeMethodsCheck);
       expect(getCheck('team-permissions')).toBe(TeamPermissionsCheck);
       expect(getCheck('branch-protection')).toBe(BranchProtectionCheck);
       expect(getCheck('security-scanning')).toBe(SecurityScanningCheck);
       expect(getCheck('archived-repos')).toBe(ArchivedReposCheck);
-      expect(getCheck('team-sync')).toBe(TeamSyncCheck);
     });
 
     it('should throw an error for unknown check names', () => {
@@ -36,12 +36,12 @@ describe('check-registry', () => {
       const availableChecks = getAvailableChecks();
 
       expect(availableChecks).toEqual([
+        'team-sync',
         'merge-methods',
         'team-permissions',
         'branch-protection',
         'security-scanning',
         'archived-repos',
-        'team-sync',
       ]);
     });
 
