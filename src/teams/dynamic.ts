@@ -68,6 +68,7 @@ export async function resolveTeams(
   }
 
   for (const rule of config.dynamic_rules) {
+    const ruleName = rule.name;
     switch (rule.type) {
       case 'all_org_members': {
         const team = await resolveAllOrgMembers(github, owner, rule, options.logger);
@@ -78,19 +79,19 @@ export async function resolveTeams(
       }
       case 'by_filter': {
         options.logger.warning(
-          `Dynamic rule ${rule.name} uses unsupported type 'by_filter' and will be skipped.`
+          `Dynamic rule ${ruleName} uses unsupported type 'by_filter' and will be skipped.`
         );
         break;
       }
       case 'composite': {
         options.logger.warning(
-          `Dynamic rule ${rule.name} uses unsupported type 'composite' and will be skipped.`
+          `Dynamic rule ${ruleName} uses unsupported type 'composite' and will be skipped.`
         );
         break;
       }
       default: {
         options.logger.warning(
-          `Dynamic rule ${rule.name} has unknown type ${(rule as { type: unknown }).type}`
+          `Dynamic rule ${ruleName} has unknown type ${(rule as { type: unknown }).type}`
         );
       }
     }

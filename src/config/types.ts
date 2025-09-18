@@ -79,6 +79,12 @@ export type TeamPrivacy = 'secret' | 'closed';
 
 export type TeamNotificationSetting = 'notifications_enabled' | 'notifications_disabled';
 
+type NonEmptyStringArray = [string, ...string[]];
+
+type AtLeastOne<T> = {
+  [K in keyof T]-?: Required<Pick<T, K>> & Partial<Omit<T, K>>;
+}[keyof T];
+
 export interface TeamMember {
   username: string;
   role?: 'member' | 'maintainer';
@@ -93,32 +99,46 @@ export interface TeamDefinition {
   notification_setting?: TeamNotificationSetting;
 }
 
-export interface TeamMemberFilter {
-  usernames?: string[];
-  emails?: string[];
-  from_teams?: string[];
-  exclude_teams?: string[];
-  with_repo_access?: string[];
-}
+export type TeamMemberFilter = AtLeastOne<{
+  usernames: NonEmptyStringArray;
+  emails: NonEmptyStringArray;
+  from_teams: NonEmptyStringArray;
+  exclude_teams: NonEmptyStringArray;
+  with_repo_access: NonEmptyStringArray;
+}>;
 
 export interface TeamCompositionDifference {
   from: string;
-  subtract: string[];
+  subtract: NonEmptyStringArray;
 }
 
-export interface TeamComposition {
-  union?: string[];
-  intersection?: string[];
-  difference?: TeamCompositionDifference;
-}
+export type TeamComposition = AtLeastOne<{
+  union: NonEmptyStringArray;
+  intersection: NonEmptyStringArray;
+  difference: TeamCompositionDifference;
+}>;
 
-export interface DynamicTeamRule {
+interface BaseDynamicRule {
   name: string;
   description?: string;
-  type: 'all_org_members' | 'by_filter' | 'composite';
-  filter?: TeamMemberFilter;
-  compose?: TeamComposition;
 }
+
+export type DynamicTeamRule =
+  | (BaseDynamicRule & {
+      type: 'all_org_members';
+      filter?: never;
+      compose?: never;
+    })
+  | (BaseDynamicRule & {
+      type: 'by_filter';
+      filter: TeamMemberFilter;
+      compose?: never;
+    })
+  | (BaseDynamicRule & {
+      type: 'composite';
+      compose: TeamComposition;
+      filter?: never;
+    });
 
 export type UnmanagedTeamsMode = 'ignore' | 'warn' | 'remove';
 

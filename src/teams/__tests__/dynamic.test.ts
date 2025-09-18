@@ -41,8 +41,8 @@ describe('teams/dynamic', () => {
 
     const config: TeamsConfig = {
       dynamic_rules: [
-        { name: 'filter-rule', type: 'by_filter' },
-        { name: 'composite-rule', type: 'composite' },
+        { name: 'filter-rule', type: 'by_filter', filter: { usernames: ['octocat'] } },
+        { name: 'composite-rule', type: 'composite', compose: { union: ['team-a'] } },
       ],
     };
 
