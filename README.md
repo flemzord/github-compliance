@@ -86,7 +86,7 @@ github-compliance-cli run -c compliance.yml -t ghp_xxx --repos "frontend,backend
 
 # Run specific checks with JSON output
 github-compliance-cli run -c compliance.yml -t ghp_xxx \
-  --checks "merge-methods,security-scanning" \
+  --checks "repo-merge-strategy,repo-security-controls" \
   --format json --output compliance-report.json
 
 # Apply fixes (no dry-run) and include archived repositories
@@ -99,11 +99,14 @@ The CLI can perform the following compliance checks:
 
 | Check ID | Description |
 |----------|-------------|
-| `merge-methods` | Validates allowed merge strategies (merge commit, squash, rebase) |
-| `branch-protection` | Ensures branch protection rules are properly configured |
-| `team-permissions` | Manages team access levels and removes individual collaborators |
-| `security-scanning` | Verifies security features (secret scanning, Dependabot, code scanning) |
-| `archived-repos` | Controls access to archived repositories |
+| `org-team-sync` | Synchronizes organization teams against the desired configuration |
+| `repo-merge-strategy` | Validates allowed merge strategies (merge commit, squash, rebase) |
+| `repo-branch-protection` | Ensures branch protection rules are properly configured |
+| `repo-access-teams` | Manages repository team access and individual collaborators |
+| `repo-security-controls` | Verifies security features (secret scanning, Dependabot, code scanning) |
+| `repo-archival-policy` | Controls access to archived repositories |
+
+Legacy identifiers (merge-methods, team-permissions, branch-protection, security-scanning, archived-repos, team-sync) are still accepted and automatically mapped to the new names.
 
 Each check can be configured in the `defaults` section of your configuration file and selectively applied using the `--checks` flag.
 

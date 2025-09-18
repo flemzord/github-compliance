@@ -819,7 +819,7 @@ describe('ArchivedReposCheck', () => {
 
   describe('property getters', () => {
     it('should have correct name', () => {
-      expect(check.name).toBe('archived-repos');
+      expect(check.name).toBe('repo-archival-policy');
     });
 
     it('should have correct description', () => {

@@ -69,7 +69,7 @@ rules:
         secret_scanning_push_protection: "enabled"
 
 checks:
-  enabled: ["merge-methods", "team-permissions", "branch-protection"]
+  enabled: ["repo-merge-strategy", "repo-access-teams", "repo-branch-protection"]
 
 cache:
   enabled: true
@@ -115,8 +115,28 @@ describe('Config validation', () => {
       expect(config.defaults.merge_methods?.allow_squash_merge).toBe(true);
       expect(config.defaults.branch_protection?.patterns).toEqual(['main', 'release/v*']);
       expect(config.rules).toHaveLength(2);
-      expect(config.checks?.enabled).toContain('merge-methods');
+      expect(config.checks?.enabled).toContain('repo-merge-strategy');
       expect(config.cache?.enabled).toBe(true);
+    });
+
+    it('maps legacy check names to new identifiers', async () => {
+      const legacyConfig = `
+version: 1
+defaults: {}
+checks:
+  enabled:
+    - merge-methods
+    - team-permissions
+    - team-sync
+`;
+
+      const config = await validateFromString(legacyConfig);
+
+      expect(config.checks?.enabled).toEqual([
+        'repo-merge-strategy',
+        'repo-access-teams',
+        'org-team-sync',
+      ]);
     });
 
     it('should reject invalid YAML syntax', async () => {

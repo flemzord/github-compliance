@@ -343,24 +343,30 @@ Specifies which compliance checks to run.
 | `enabled` | `string[]` | List of checks to enable |
 
 **Available Checks**:
-- `merge-methods`: Validates merge button settings
-- `team-permissions`: Validates team access and removes individual collaborators
-- `branch-protection`: Ensures branch protection rules are configured
-- `security-scanning`: Validates security features are enabled
-- `archived-repos`: Validates archived repository settings
+- `org-team-sync`: Synchronizes organization teams with the desired state
+- `repo-merge-strategy`: Validates merge button settings
+- `repo-access-teams`: Validates team access and removes individual collaborators
+- `repo-branch-protection`: Ensures branch protection rules are configured
+- `repo-security-controls`: Validates security features are enabled
+- `repo-archival-policy`: Validates archived repository settings
 
 **Example**:
 ```yaml
 checks:
   enabled:
-    - merge-methods
-    - team-permissions
-    - branch-protection
-    - security-scanning
-    - archived-repos
+    - org-team-sync
+    - repo-merge-strategy
+    - repo-access-teams
+    - repo-branch-protection
+    - repo-security-controls
+    - repo-archival-policy
 ```
 
 If not specified, all checks are enabled by default.
+
+> Legacy identifiers (merge-methods, team-permissions, branch-protection,
+> security-scanning, archived-repos, team-sync) are still accepted and
+> automatically mapped to the new names.
 
 ## Complete Configuration Example
 
@@ -471,11 +477,12 @@ rules:
 # Enabled compliance checks
 checks:
   enabled:
-    - merge-methods
-    - team-permissions
-    - branch-protection
-    - security-scanning
-    - archived-repos
+    - org-team-sync
+    - repo-merge-strategy
+    - repo-access-teams
+    - repo-branch-protection
+    - repo-security-controls
+    - repo-archival-policy
 ```
 
 ## Best Practices

@@ -4,7 +4,7 @@ import type { GitHubClient } from '../github/client';
 import type { Repository } from '../github/types';
 import type { ProgressLogger } from '../logging';
 import * as logger from '../logging';
-import { getAvailableChecks, getCheck } from './check-registry';
+import { getAvailableChecks, getCheck, normalizeCheckName } from './check-registry';
 import type { CheckExecution, RepositoryReport, RunnerOptions, RunnerReport } from './types';
 
 export class ComplianceRunner {
@@ -148,14 +148,14 @@ export class ComplianceRunner {
       return availableChecks;
     }
 
-    // Validate requested checks
-    const invalidChecks = this.options.checks.filter((check) => !availableChecks.includes(check));
+    const normalizedChecks = this.options.checks.map((check) => normalizeCheckName(check));
+    const invalidChecks = normalizedChecks.filter((check) => !availableChecks.includes(check));
 
     if (invalidChecks.length > 0) {
       logger.warning(`Invalid checks requested: ${invalidChecks.join(', ')}`);
     }
 
-    return this.options.checks.filter((check) => availableChecks.includes(check));
+    return normalizedChecks.filter((check) => availableChecks.includes(check));
   }
 
   /**

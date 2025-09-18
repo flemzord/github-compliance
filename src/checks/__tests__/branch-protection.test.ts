@@ -881,7 +881,7 @@ describe('BranchProtectionCheck', () => {
 
   describe('property getters', () => {
     it('should have correct name', () => {
-      expect(check.name).toBe('branch-protection');
+      expect(check.name).toBe('repo-branch-protection');
     });
 
     it('should have correct description', () => {

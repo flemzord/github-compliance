@@ -8,7 +8,16 @@ import { getAvailableChecks, getCheck } from '../check-registry';
 
 describe('check-registry', () => {
   describe('getCheck', () => {
-    it('should return the correct check class for valid check names', () => {
+    it('should return the correct check class for new check names', () => {
+      expect(getCheck('org-team-sync')).toBe(TeamSyncCheck);
+      expect(getCheck('repo-merge-strategy')).toBe(MergeMethodsCheck);
+      expect(getCheck('repo-access-teams')).toBe(TeamPermissionsCheck);
+      expect(getCheck('repo-branch-protection')).toBe(BranchProtectionCheck);
+      expect(getCheck('repo-security-controls')).toBe(SecurityScanningCheck);
+      expect(getCheck('repo-archival-policy')).toBe(ArchivedReposCheck);
+    });
+
+    it('should support legacy check name aliases', () => {
       expect(getCheck('team-sync')).toBe(TeamSyncCheck);
       expect(getCheck('merge-methods')).toBe(MergeMethodsCheck);
       expect(getCheck('team-permissions')).toBe(TeamPermissionsCheck);
@@ -36,12 +45,12 @@ describe('check-registry', () => {
       const availableChecks = getAvailableChecks();
 
       expect(availableChecks).toEqual([
-        'team-sync',
-        'merge-methods',
-        'team-permissions',
-        'branch-protection',
-        'security-scanning',
-        'archived-repos',
+        'org-team-sync',
+        'repo-merge-strategy',
+        'repo-access-teams',
+        'repo-branch-protection',
+        'repo-security-controls',
+        'repo-archival-policy',
       ]);
     });
 

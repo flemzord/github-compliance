@@ -570,7 +570,7 @@ describe('MergeMethodsCheck', () => {
 
   describe('property getters', () => {
     it('should have correct name', () => {
-      expect(check.name).toBe('merge-methods');
+      expect(check.name).toBe('repo-merge-strategy');
     });
 
     it('should have correct description', () => {

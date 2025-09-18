@@ -10,7 +10,7 @@ import type {
 } from './types';
 
 export class SecurityScanningCheck extends BaseCheck {
-  readonly name = 'security-scanning';
+  readonly name = 'repo-security-controls';
   readonly description = 'Verify repository security scanning settings';
 
   shouldRun(context: CheckContext): boolean {

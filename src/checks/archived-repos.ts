@@ -3,7 +3,7 @@ import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckAction, CheckDetails } from './types';
 
 export class ArchivedReposCheck extends BaseCheck {
-  readonly name = 'archived-repos';
+  readonly name = 'repo-archival-policy';
   readonly description = 'Verify repository archival status and cleanup';
 
   shouldRun(context: CheckContext): boolean {

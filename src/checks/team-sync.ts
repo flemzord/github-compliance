@@ -18,7 +18,7 @@ function createLoggerAdapter(): Logger {
 }
 
 export class TeamSyncCheck extends BaseCheck {
-  readonly name = 'team-sync';
+  readonly name = 'org-team-sync';
   readonly description = 'Preview of GitHub team synchronization based on configuration.';
 
   shouldRun(context: CheckContext): boolean {

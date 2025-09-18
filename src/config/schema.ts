@@ -275,17 +275,44 @@ const RuleSchema = z.object({
     .partial(),
 });
 
+const NEW_CHECK_NAMES = [
+  'org-team-sync',
+  'repo-merge-strategy',
+  'repo-access-teams',
+  'repo-branch-protection',
+  'repo-security-controls',
+  'repo-archival-policy',
+] as const;
+
+const LEGACY_CHECK_NAMES = [
+  'team-sync',
+  'merge-methods',
+  'team-permissions',
+  'branch-protection',
+  'security-scanning',
+  'archived-repos',
+] as const;
+
+const LEGACY_CHECK_NAME_ALIASES: Record<
+  (typeof LEGACY_CHECK_NAMES)[number],
+  (typeof NEW_CHECK_NAMES)[number]
+> = {
+  'team-sync': 'org-team-sync',
+  'merge-methods': 'repo-merge-strategy',
+  'team-permissions': 'repo-access-teams',
+  'branch-protection': 'repo-branch-protection',
+  'security-scanning': 'repo-security-controls',
+  'archived-repos': 'repo-archival-policy',
+};
+
+const CheckNameSchema = z
+  .union([z.enum(NEW_CHECK_NAMES), z.enum(LEGACY_CHECK_NAMES)])
+  .transform(
+    (value) => LEGACY_CHECK_NAME_ALIASES[value as (typeof LEGACY_CHECK_NAMES)[number]] ?? value
+  );
+
 const ChecksSchema = z.object({
-  enabled: z.array(
-    z.enum([
-      'merge-methods',
-      'team-permissions',
-      'branch-protection',
-      'security-scanning',
-      'archived-repos',
-      'team-sync',
-    ])
-  ),
+  enabled: z.array(CheckNameSchema),
 });
 
 export const ComplianceConfigSchema = z.object({

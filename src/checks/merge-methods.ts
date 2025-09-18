@@ -3,7 +3,7 @@ import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { CheckDetails, RepositoryUpdateSettings, RepositoryWithMergeMethods } from './types';
 
 export class MergeMethodsCheck extends BaseCheck {
-  readonly name = 'merge-methods';
+  readonly name = 'repo-merge-strategy';
   readonly description = 'Verify repository merge methods configuration';
 
   shouldRun(context: CheckContext): boolean {

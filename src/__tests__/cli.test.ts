@@ -11,7 +11,7 @@ jest.mock('../config/validator', () => ({
       organization: 'test-org',
       defaults: {
         checks: {
-          'merge-methods': {
+          'repo-merge-strategy': {
             allow_merge_commit: false,
             allow_squash_merge: true,
             allow_rebase_merge: false,
@@ -63,7 +63,7 @@ describe('CLI Commands', () => {
 organization: test-org
 defaults:
   checks:
-    merge-methods:
+    repo-merge-strategy:
       allow_merge_commit: false
       allow_squash_merge: true
       allow_rebase_merge: false
@@ -169,7 +169,7 @@ defaults:
           config: testConfigPath,
           token: 'test-token',
           repos: 'repo1,repo2',
-          checks: 'merge-methods,security-scanning',
+          checks: 'repo-merge-strategy,repo-security-controls',
         })
       ).rejects.toThrow('process.exit');
 
@@ -177,7 +177,7 @@ defaults:
         .calls[0];
       expect(runnerConstructor[2]).toMatchObject({
         repos: ['repo1', 'repo2'],
-        checks: ['merge-methods', 'security-scanning'],
+        checks: ['repo-merge-strategy', 'repo-security-controls'],
       });
     });
 
