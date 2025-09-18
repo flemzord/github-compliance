@@ -887,7 +887,7 @@ describe('SecurityScanningCheck', () => {
 
   describe('property getters', () => {
     it('should have correct name', () => {
-      expect(check.name).toBe('security-scanning');
+      expect(check.name).toBe('repo-security-controls');
     });
 
     it('should have correct description', () => {

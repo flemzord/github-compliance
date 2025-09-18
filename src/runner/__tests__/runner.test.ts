@@ -89,7 +89,7 @@ describe('ComplianceRunner', () => {
     const options: RunnerOptions = {
       dryRun: true,
       includeArchived: false,
-      checks: ['merge-methods'],
+      checks: ['repo-merge-strategy'],
     };
 
     const runner = new ComplianceRunner(mockClient as GitHubClient, mockConfig, options);
@@ -98,6 +98,18 @@ describe('ComplianceRunner', () => {
 
     expect(report).toHaveProperty('repositories');
     // Since we're using a mock, detailed assertions would depend on mock implementations
+  });
+
+  it('should normalize legacy check identifiers', async () => {
+    const options: RunnerOptions = {
+      dryRun: true,
+      includeArchived: false,
+      checks: ['merge-methods'],
+    };
+
+    const runner = new ComplianceRunner(mockClient as GitHubClient, mockConfig, options);
+
+    await expect(runner.run()).resolves.toHaveProperty('repositories');
   });
 
   it('should handle empty repository list', async () => {

@@ -63,6 +63,29 @@ export interface TeamPermission {
   permission: 'read' | 'triage' | 'write' | 'maintain' | 'admin';
 }
 
+export interface GitHubTeamSummary {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  privacy?: 'closed' | 'secret';
+  notification_setting?: 'notifications_enabled' | 'notifications_disabled' | null;
+  parent?: {
+    id: number;
+    slug?: string | null;
+    name?: string | null;
+  } | null;
+}
+
+export interface GitHubTeamMember {
+  login: string;
+  role: 'member' | 'maintainer';
+}
+
+export interface OrganizationMember {
+  login: string;
+}
+
 export interface Collaborator {
   id: number;
   login: string;

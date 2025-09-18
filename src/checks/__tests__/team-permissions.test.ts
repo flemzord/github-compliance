@@ -1020,7 +1020,7 @@ describe('TeamPermissionsCheck', () => {
 
   describe('property getters', () => {
     it('should have correct name', () => {
-      expect(check.name).toBe('team-permissions');
+      expect(check.name).toBe('repo-access-teams');
     });
 
     it('should have correct description', () => {

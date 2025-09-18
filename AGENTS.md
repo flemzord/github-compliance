@@ -44,7 +44,7 @@ github-compliance-cli run --config compliance.yml --token ghp_xxx --dry-run
 github-compliance-cli run -c config.yml -t ghp_xxx --repos "repo1,repo2"
 
 # Run specific checks only
-github-compliance-cli run -c config.yml -t ghp_xxx --checks "merge-methods,security-scanning"
+github-compliance-cli run -c config.yml -t ghp_xxx --checks "repo-merge-strategy,repo-security-controls"
 
 # Generate JSON report
 github-compliance-cli run -c config.yml -t ghp_xxx --format json --output report.json
@@ -132,11 +132,12 @@ npm run lint:types
 - **Base Class**: `src/checks/base.ts` - Abstract `BaseCheck` with common functionality
 - **Check Interface**: `ComplianceCheck` interface defines `shouldRun()`, `check()`, `fix()` methods
 - **Available Checks**:
-  - `merge-methods` - Repository merge button settings
-  - `branch-protection` - Protected branch rules
-  - `team-permissions` - Team access and individual collaborator removal
-  - `security-scanning` - Dependabot, secret scanning, code scanning
-  - `archived-repos` - Admin team access validation for archived repositories
+  - `org-team-sync` - Organization team synchronization
+  - `repo-merge-strategy` - Repository merge button settings
+  - `repo-branch-protection` - Protected branch rules
+  - `repo-access-teams` - Team access and individual collaborator removal
+  - `repo-security-controls` - Dependabot, secret scanning, code scanning
+  - `repo-archival-policy` - Admin team access validation for archived repositories
 - **Registry**: `src/runner/check-registry.ts` maps check names to implementations
 
 ### GitHub Client Architecture

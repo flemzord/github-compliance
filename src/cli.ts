@@ -262,11 +262,11 @@ async function validateCommand(options: ValidateOptions): Promise<void> {
         const defaults = (config as ComplianceConfig).defaults;
         if (defaults) {
           const checkTypes: string[] = [];
-          if (defaults.merge_methods) checkTypes.push('merge-methods');
-          if (defaults.branch_protection) checkTypes.push('branch-protection');
-          if (defaults.security) checkTypes.push('security');
-          if (defaults.permissions) checkTypes.push('permissions');
-          if (defaults.archived_repos) checkTypes.push('archived-repos');
+          if (defaults.merge_methods) checkTypes.push('repo-merge-strategy');
+          if (defaults.branch_protection) checkTypes.push('repo-branch-protection');
+          if (defaults.security) checkTypes.push('repo-security-controls');
+          if (defaults.permissions) checkTypes.push('repo-access-teams');
+          if (defaults.archived_repos) checkTypes.push('repo-archival-policy');
 
           if (checkTypes.length > 0) {
             logger.info(`  Configured checks: ${checkTypes.join(', ')}`);

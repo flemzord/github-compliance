@@ -75,6 +75,80 @@ export interface Permissions {
   users?: ConfigUserPermission[];
 }
 
+export type TeamPrivacy = 'secret' | 'closed';
+
+export type TeamNotificationSetting = 'notifications_enabled' | 'notifications_disabled';
+
+type NonEmptyStringArray = [string, ...string[]];
+
+type AtLeastOne<T> = {
+  [K in keyof T]-?: Required<Pick<T, K>> & Partial<Omit<T, K>>;
+}[keyof T];
+
+export interface TeamMember {
+  username: string;
+  role?: 'member' | 'maintainer';
+}
+
+export interface TeamDefinition {
+  name: string;
+  description?: string;
+  members?: TeamMember[];
+  parent?: string;
+  privacy?: TeamPrivacy;
+  notification_setting?: TeamNotificationSetting;
+}
+
+export type TeamMemberFilter = AtLeastOne<{
+  usernames: NonEmptyStringArray;
+  emails: NonEmptyStringArray;
+  from_teams: NonEmptyStringArray;
+  exclude_teams: NonEmptyStringArray;
+  with_repo_access: NonEmptyStringArray;
+}>;
+
+export interface TeamCompositionDifference {
+  from: string;
+  subtract: NonEmptyStringArray;
+}
+
+export type TeamComposition = AtLeastOne<{
+  union: NonEmptyStringArray;
+  intersection: NonEmptyStringArray;
+  difference: TeamCompositionDifference;
+}>;
+
+interface BaseDynamicRule {
+  name: string;
+  description?: string;
+}
+
+export type DynamicTeamRule =
+  | (BaseDynamicRule & {
+      type: 'all_org_members';
+      filter?: never;
+      compose?: never;
+    })
+  | (BaseDynamicRule & {
+      type: 'by_filter';
+      filter: TeamMemberFilter;
+      compose?: never;
+    })
+  | (BaseDynamicRule & {
+      type: 'composite';
+      compose: TeamComposition;
+      filter?: never;
+    });
+
+export type UnmanagedTeamsMode = 'ignore' | 'warn' | 'remove';
+
+export interface TeamsConfig {
+  definitions?: TeamDefinition[];
+  dynamic_rules?: DynamicTeamRule[];
+  dry_run?: boolean;
+  unmanaged_teams?: UnmanagedTeamsMode;
+}
+
 export interface ArchivedRepos {
   admin_team_only: boolean;
   archive_inactive?: boolean;
@@ -114,4 +188,5 @@ export interface ComplianceConfig {
   rules?: Rule[];
   checks?: Checks;
   cache?: CacheConfig;
+  teams?: TeamsConfig;
 }

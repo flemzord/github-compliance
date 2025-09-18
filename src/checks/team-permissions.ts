@@ -3,7 +3,7 @@ import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckDetails, CollaboratorPermissions } from './types';
 
 export class TeamPermissionsCheck extends BaseCheck {
-  readonly name = 'team-permissions';
+  readonly name = 'repo-access-teams';
   readonly description = 'Verify repository team permissions and collaborator access';
 
   shouldRun(context: CheckContext): boolean {

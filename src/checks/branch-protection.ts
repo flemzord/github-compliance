@@ -3,7 +3,7 @@ import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckDetails } from './types';
 
 export class BranchProtectionCheck extends BaseCheck {
-  readonly name = 'branch-protection';
+  readonly name = 'repo-branch-protection';
   readonly description = 'Verify repository branch protection rules';
 
   shouldRun(context: CheckContext): boolean {
