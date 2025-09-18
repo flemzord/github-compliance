@@ -103,7 +103,7 @@ describe('TeamSyncCheck', () => {
 
     const result = await check.check(createContext(config));
 
-    expect(result.compliant).toBe(true);
+    expect(result.compliant).toBe(false);
     expect(result.message).toContain('Preview: processed 1 team(s)');
     expect(syncSpy).toHaveBeenCalledTimes(1);
     syncSpy.mockRestore();

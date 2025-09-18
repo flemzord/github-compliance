@@ -50,6 +50,13 @@ export class TeamSyncCheck extends BaseCheck {
       return this.createErrorResult('Team synchronization encountered errors', result.summary);
     }
 
+    if (result.hasChanges) {
+      return this.createNonCompliantResult(result.summary, {
+        findings: result.findings,
+        stats: result.stats,
+      });
+    }
+
     return this.createCompliantResult(result.summary, {
       findings: result.findings,
       stats: result.stats,
@@ -85,7 +92,7 @@ export class TeamSyncCheck extends BaseCheck {
       return this.createErrorResult('Team synchronization encountered errors', result.summary);
     }
 
-    return this.createCompliantResult(result.summary, {
+    return this.createFixedResult(result.summary, {
       findings: result.findings,
       stats: result.stats,
     });
