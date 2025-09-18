@@ -4,8 +4,6 @@ import type { Logger } from '../../logging';
 import { resolveTeams } from '../dynamic';
 
 describe('teams/dynamic', () => {
-  const github = {} as unknown as GitHubClient;
-
   const logger: Logger = {
     info: jest.fn(),
     warning: jest.fn(),
@@ -20,32 +18,37 @@ describe('teams/dynamic', () => {
   });
 
   it('returns static and dynamic teams', async () => {
+    const github = {
+      listOrganizationMembers: jest.fn().mockResolvedValue([{ login: 'octocat' }]),
+    } as unknown as GitHubClient;
+
     const config: TeamsConfig = {
       definitions: [{ name: 'platform', members: [{ username: 'octocat' }] }],
-      dynamic_rules: [{ name: 'all-members', type: 'all_org_members' }],
+      dynamic_rules: [{ name: 'all', type: 'all_org_members' }],
     };
 
-    const resolved = await resolveTeams(github, config, { logger, dryRun: true });
+    const resolved = await resolveTeams(github, config, { logger, dryRun: true }, 'test-org');
 
     expect(resolved.staticTeams).toHaveLength(1);
-    expect(resolved.staticTeams[0]?.definition.name).toBe('platform');
-    expect(resolved.staticTeams[0]?.members).toEqual([{ username: 'octocat' }]);
-
     expect(resolved.dynamicTeams).toHaveLength(1);
-    expect(resolved.dynamicTeams[0]?.definition.name).toBe('all-members');
-    expect(resolved.dynamicTeams[0]?.rule?.name).toBe('all-members');
-    expect(logger.debug).toHaveBeenCalledWith(
-      'Dynamic team rules detected but the resolution engine is not implemented yet.'
-    );
+    expect(resolved.dynamicTeams[0]?.members).toEqual([{ username: 'octocat', role: 'member' }]);
   });
 
-  it('handles missing team definitions gracefully', async () => {
-    const config: TeamsConfig = {};
+  it('warns about unsupported rule types', async () => {
+    const github = {
+      listOrganizationMembers: jest.fn().mockResolvedValue([]),
+    } as unknown as GitHubClient;
 
-    const resolved = await resolveTeams(github, config, { logger, dryRun: false });
+    const config: TeamsConfig = {
+      dynamic_rules: [
+        { name: 'filter-rule', type: 'by_filter' },
+        { name: 'composite-rule', type: 'composite' },
+      ],
+    };
 
-    expect(resolved.staticTeams).toEqual([]);
-    expect(resolved.dynamicTeams).toEqual([]);
-    expect(logger.debug).not.toHaveBeenCalled();
+    const resolved = await resolveTeams(github, config, { logger, dryRun: true }, 'test-org');
+
+    expect(resolved.dynamicTeams).toHaveLength(0);
+    expect(logger.warning).toHaveBeenCalledTimes(2);
   });
 });

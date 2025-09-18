@@ -1,4 +1,4 @@
-import type { DynamicTeamRule, TeamDefinition, TeamsConfig } from '../config/types';
+import type { DynamicTeamRule, TeamDefinition, TeamMember, TeamsConfig } from '../config/types';
 import type { GitHubClient } from '../github';
 import type { Logger } from '../logging';
 import type { ResolvedTeam, ResolvedTeams } from './types';
@@ -28,27 +28,72 @@ function convertStaticDefinitions(definitions: TeamDefinition[] | undefined): Re
   }));
 }
 
-function convertDynamicRules(rules: DynamicTeamRule[] | undefined): ResolvedTeam[] {
-  return (rules ?? []).map((rule) => ({
-    definition: createPlaceholderTeamFromRule(rule),
-    members: [],
-    source: 'dynamic' as const,
-    rule,
-  }));
+async function resolveAllOrgMembers(
+  github: GitHubClient,
+  owner: string,
+  rule: DynamicTeamRule,
+  logger: Logger
+): Promise<ResolvedTeam | null> {
+  try {
+    const members = await github.listOrganizationMembers(owner);
+    const teamMembers: TeamMember[] = members.map((member) => ({
+      username: member.login,
+      role: 'member',
+    }));
+
+    return {
+      definition: createPlaceholderTeamFromRule(rule),
+      members: teamMembers,
+      source: 'dynamic',
+      rule,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to resolve all_org_members rule ${rule.name}: ${message}`);
+    return null;
+  }
 }
 
 export async function resolveTeams(
-  _github: GitHubClient,
+  github: GitHubClient,
   config: TeamsConfig,
-  options: ResolveTeamsOptions
+  options: ResolveTeamsOptions,
+  owner: string
 ): Promise<ResolvedTeams> {
   const staticTeams = convertStaticDefinitions(config.definitions);
-  const dynamicTeams = convertDynamicRules(config.dynamic_rules);
+  const dynamicTeams: ResolvedTeam[] = [];
 
-  if (dynamicTeams.length > 0) {
-    options.logger.debug(
-      'Dynamic team rules detected but the resolution engine is not implemented yet.'
-    );
+  if (!config.dynamic_rules) {
+    return { staticTeams, dynamicTeams };
+  }
+
+  for (const rule of config.dynamic_rules) {
+    switch (rule.type) {
+      case 'all_org_members': {
+        const team = await resolveAllOrgMembers(github, owner, rule, options.logger);
+        if (team) {
+          dynamicTeams.push(team);
+        }
+        break;
+      }
+      case 'by_filter': {
+        options.logger.warning(
+          `Dynamic rule ${rule.name} uses unsupported type 'by_filter' and will be skipped.`
+        );
+        break;
+      }
+      case 'composite': {
+        options.logger.warning(
+          `Dynamic rule ${rule.name} uses unsupported type 'composite' and will be skipped.`
+        );
+        break;
+      }
+      default: {
+        options.logger.warning(
+          `Dynamic rule ${rule.name} has unknown type ${(rule as { type: unknown }).type}`
+        );
+      }
+    }
   }
 
   return { staticTeams, dynamicTeams };

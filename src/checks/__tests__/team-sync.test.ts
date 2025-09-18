@@ -77,10 +77,25 @@ describe('TeamSyncCheck', () => {
     expect(check.shouldRun(createContext(config))).toBe(true);
   });
 
-  it('should return a compliant result summarizing preview mode', async () => {
+  it('should return a compliant result using preview summary', async () => {
+    const syncSpy = jest.spyOn(TeamManager.prototype, 'sync').mockResolvedValue({
+      hasChanges: true,
+      hasErrors: false,
+      findings: [],
+      summary: 'Preview: processed 1 team(s) (created 1, updated 0, skipped 0).',
+      stats: {
+        processed: 1,
+        created: 1,
+        updated: 0,
+        removed: 0,
+        skipped: 0,
+      },
+    });
+
     const config: ComplianceConfig = {
       version: 1,
       defaults: {},
+      organization: 'test-org',
       teams: {
         definitions: [{ name: 'platform', members: [{ username: 'octocat' }] }],
       },
@@ -89,43 +104,39 @@ describe('TeamSyncCheck', () => {
     const result = await check.check(createContext(config));
 
     expect(result.compliant).toBe(true);
-    expect(result.message).toContain('not yet implemented');
-    expect(result.details?.stats).toEqual({
-      processed: 1,
-      created: 0,
-      updated: 0,
-      removed: 0,
-      skipped: 1,
-    });
+    expect(result.message).toContain('Preview: processed 1 team(s)');
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    syncSpy.mockRestore();
   });
 
   it('should call team manager sync during fix', async () => {
-    const config: ComplianceConfig = {
-      version: 1,
-      defaults: {},
-      teams: {
-        definitions: [{ name: 'platform' }],
-      },
-    };
-
     const syncSpy = jest.spyOn(TeamManager.prototype, 'sync').mockResolvedValue({
-      hasChanges: false,
+      hasChanges: true,
       hasErrors: false,
       findings: [],
-      summary: 'noop',
+      summary: 'Processed 1 team(s) (created 1, updated 0, skipped 0).',
       stats: {
-        processed: 0,
-        created: 0,
+        processed: 1,
+        created: 1,
         updated: 0,
         removed: 0,
         skipped: 0,
       },
     });
 
-    await check.fix(createContext(config, false));
+    const config: ComplianceConfig = {
+      version: 1,
+      defaults: {},
+      organization: 'test-org',
+      teams: {
+        definitions: [{ name: 'platform' }],
+      },
+    };
+
+    const result = await check.fix(createContext(config, false));
 
     expect(syncSpy).toHaveBeenCalledTimes(1);
-
+    expect(result.message).toContain('Processed 1 team(s)');
     syncSpy.mockRestore();
   });
 });

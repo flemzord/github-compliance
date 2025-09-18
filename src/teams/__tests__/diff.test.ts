@@ -1,41 +1,85 @@
-import type { TeamDefinition } from '../../config/types';
-import type { GitHubClient } from '../../github';
+import type { TeamDefinition, TeamMember } from '../../config/types';
 import { calculateTeamDiff } from '../diff';
+import type { GitHubTeamState } from '../types';
 
 describe('teams/diff', () => {
-  const github = {} as unknown as GitHubClient;
+  const baseDefinition: TeamDefinition = {
+    name: 'platform',
+    description: 'Platform team',
+    privacy: 'closed',
+  };
 
-  it('includes new members and metadata changes', async () => {
+  it('includes new members and metadata changes', () => {
     const definition: TeamDefinition = {
-      name: 'platform',
-      description: 'Platform team',
-      privacy: 'closed',
+      ...baseDefinition,
       parent: 'engineering',
+      notification_setting: 'notifications_disabled',
       members: [{ username: 'octocat', role: 'maintainer' }, { username: 'hubot' }],
     };
 
-    const diff = await calculateTeamDiff(github, definition);
+    const diff = calculateTeamDiff({
+      definition,
+      slug: 'platform',
+      targetMembers: definition.members as TeamMember[],
+      manageMembers: true,
+      existingTeam: null,
+      parentTeamId: null,
+      targetParentSlug: 'engineering',
+    });
 
-    expect(diff.team).toBe('platform');
     expect(diff.exists).toBe(false);
-    expect(diff.changes.description).toEqual({ new: 'Platform team' });
-    expect(diff.changes.privacy).toEqual({ new: 'closed' });
-    expect(diff.changes.parent).toEqual({ new: 'engineering' });
+    expect(diff.changes.description?.new).toBe('Platform team');
+    expect(diff.changes.privacy?.new).toBe('closed');
+    expect(diff.changes.parent?.new).toBe('engineering');
+    expect(diff.changes.notification_setting?.new).toBe('notifications_disabled');
     expect(diff.changes.membersToAdd).toHaveLength(2);
     expect(diff.changes.membersToRemove).toEqual([]);
     expect(diff.changes.membersToUpdateRole).toEqual([]);
   });
 
-  it('omits optional metadata when not provided', async () => {
-    const definition: TeamDefinition = {
-      name: 'support',
+  it('finds differences for existing team', () => {
+    const existingTeam: GitHubTeamState = {
+      id: 42,
+      name: 'platform',
+      slug: 'platform',
+      description: 'Old description',
+      parent: 'engineering',
+      privacy: 'secret',
+      notification_setting: 'notifications_enabled',
+      members: [
+        { username: 'octocat', role: 'member' },
+        { username: 'hubot', role: 'maintainer' },
+      ],
     };
 
-    const diff = await calculateTeamDiff(github, definition);
+    const definition: TeamDefinition = {
+      ...baseDefinition,
+      description: 'New description',
+      privacy: 'closed',
+      notification_setting: 'notifications_disabled',
+      members: [{ username: 'octocat', role: 'maintainer' }],
+    };
 
-    expect(diff.changes.description).toBeUndefined();
-    expect(diff.changes.privacy).toBeUndefined();
-    expect(diff.changes.parent).toBeUndefined();
+    const diff = calculateTeamDiff({
+      definition,
+      slug: 'platform',
+      targetMembers: definition.members ?? [],
+      manageMembers: true,
+      existingTeam,
+      parentTeamId: null,
+      targetParentSlug: null,
+    });
+
+    expect(diff.exists).toBe(true);
+    expect(diff.changes.description?.old).toBe('Old description');
+    expect(diff.changes.description?.new).toBe('New description');
+    expect(diff.changes.privacy?.old).toBe('secret');
+    expect(diff.changes.privacy?.new).toBe('closed');
+    expect(diff.changes.notification_setting?.new).toBe('notifications_disabled');
     expect(diff.changes.membersToAdd).toEqual([]);
+    expect(diff.changes.membersToRemove).toEqual(['hubot']);
+    expect(diff.changes.membersToUpdateRole).toEqual([
+      { username: 'octocat', newRole: 'maintainer' },
+    ]);
   });
 });

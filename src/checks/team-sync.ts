@@ -30,13 +30,18 @@ export class TeamSyncCheck extends BaseCheck {
       return this.createCompliantResult('No team configuration defined for this run.');
     }
 
-    const options: TeamSyncOptions = { dryRun: true };
+    const baseOptions: TeamSyncOptions = {
+      dryRun: true,
+    };
+    if (context.config.organization) {
+      baseOptions.owner = context.config.organization;
+    }
     const unmanagedTeams = context.config.teams.unmanaged_teams;
     const manager = new TeamManager(
       context.client,
       context.config.teams,
       createLoggerAdapter(),
-      unmanagedTeams !== undefined ? { ...options, unmanagedTeams } : options
+      unmanagedTeams !== undefined ? { ...baseOptions, unmanagedTeams } : baseOptions
     );
 
     const result = await manager.sync();
@@ -60,13 +65,18 @@ export class TeamSyncCheck extends BaseCheck {
       return this.check(context);
     }
 
-    const options: TeamSyncOptions = { dryRun: false };
+    const baseOptions: TeamSyncOptions = {
+      dryRun: false,
+    };
+    if (context.config.organization) {
+      baseOptions.owner = context.config.organization;
+    }
     const unmanagedTeams = context.config.teams.unmanaged_teams;
     const manager = new TeamManager(
       context.client,
       context.config.teams,
       createLoggerAdapter(),
-      unmanagedTeams !== undefined ? { ...options, unmanagedTeams } : options
+      unmanagedTeams !== undefined ? { ...baseOptions, unmanagedTeams } : baseOptions
     );
 
     const result = await manager.sync();

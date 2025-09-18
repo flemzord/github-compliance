@@ -27,12 +27,18 @@ export interface GitHubTeamState {
   parent?: string | null;
   privacy?: 'closed' | 'secret';
   members: TeamMember[];
+  id?: number;
+  notification_setting?: 'notifications_enabled' | 'notifications_disabled' | null;
 }
 
 export interface TeamDiffChangeSet {
-  description?: { old?: string | null; new?: string };
+  description?: { old?: string | null; new?: string | null };
   privacy?: { old?: 'closed' | 'secret' | null; new?: 'closed' | 'secret' };
   parent?: { old?: string | null; new?: string | null };
+  notification_setting?: {
+    old?: 'notifications_enabled' | 'notifications_disabled' | null;
+    new?: 'notifications_enabled' | 'notifications_disabled' | null;
+  };
   membersToAdd: TeamMember[];
   membersToRemove: string[];
   membersToUpdateRole: { username: string; newRole: 'member' | 'maintainer' }[];
@@ -40,7 +46,13 @@ export interface TeamDiffChangeSet {
 
 export interface TeamDiff {
   team: string;
+  slug: string;
+  teamId?: number;
   exists: boolean;
+  definition: TeamDefinition;
+  targetMembers: TeamMember[];
+  manageMembers: boolean;
+  targetParentId?: number | null;
   changes: TeamDiffChangeSet;
 }
 
@@ -72,6 +84,7 @@ export interface SyncResult {
 export interface TeamSyncOptions {
   dryRun?: boolean;
   unmanagedTeams?: UnmanagedTeamsMode;
+  owner?: string;
 }
 
 export interface TeamSynchronizationContext {

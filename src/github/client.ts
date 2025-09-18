@@ -8,6 +8,9 @@ import type {
   BranchProtectionRule,
   Collaborator,
   GitHubClientOptions,
+  GitHubTeamMember,
+  GitHubTeamSummary,
+  OrganizationMember,
   Repository,
   RepositorySettings,
   SecuritySettings,
@@ -103,6 +106,10 @@ export class GitHubClient {
    */
   setOwner(owner: string): void {
     this.owner = owner;
+  }
+
+  getOwner(): string | undefined {
+    return this.owner;
   }
 
   /**
@@ -389,6 +396,246 @@ export class GitHubClient {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Failed to get team permissions for ${owner}/${repo}: ${message}`);
+      }
+    });
+  }
+
+  async listOrganizationTeams(owner?: string): Promise<GitHubTeamSummary[]> {
+    const org = owner || this.owner;
+    if (!org) {
+      throw new Error('Organization is required to list teams');
+    }
+
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'teams',
+      owner: this.getCacheOwner(org),
+      identifier: 'all',
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const teams: GitHubTeamSummary[] = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.teams.list, {
+          org,
+          per_page: 100,
+        });
+
+        for await (const { data } of iterator) {
+          teams.push(...(data as unknown as GitHubTeamSummary[]));
+        }
+
+        return teams;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to list teams for ${org}: ${message}`);
+      }
+    });
+  }
+
+  async getTeamBySlug(owner: string, teamSlug: string): Promise<GitHubTeamSummary | null> {
+    try {
+      const response = await this.octokit.rest.teams.getByName({
+        org: owner,
+        team_slug: teamSlug,
+      });
+      return response.data as unknown as GitHubTeamSummary;
+    } catch (error) {
+      if (isStatusError(error, 404)) {
+        return null;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get team ${owner}/${teamSlug}: ${message}`);
+    }
+  }
+
+  async createTeam(
+    owner: string,
+    params: {
+      name: string;
+      description?: string;
+      privacy?: 'secret' | 'closed';
+      parent_team_id?: number;
+      notification_setting?: 'notifications_enabled' | 'notifications_disabled';
+    }
+  ): Promise<GitHubTeamSummary> {
+    try {
+      const payload: {
+        org: string;
+        name: string;
+        description?: string;
+        privacy?: 'secret' | 'closed';
+        notification_setting?: 'notifications_enabled' | 'notifications_disabled';
+        parent_team_id?: number;
+      } = {
+        org: owner,
+        name: params.name,
+      };
+
+      if (params.description !== undefined) {
+        payload.description = params.description;
+      }
+      if (params.privacy !== undefined) {
+        payload.privacy = params.privacy;
+      }
+      if (params.notification_setting !== undefined) {
+        payload.notification_setting = params.notification_setting;
+      }
+      if (params.parent_team_id !== undefined) {
+        payload.parent_team_id = params.parent_team_id;
+      }
+
+      const response = await this.octokit.rest.teams.create(payload);
+      this.invalidateCache('teams', owner);
+      return response.data as unknown as GitHubTeamSummary;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create team ${params.name} in ${owner}: ${message}`);
+    }
+  }
+
+  async updateTeam(
+    owner: string,
+    teamSlug: string,
+    params: {
+      name?: string;
+      description?: string | null;
+      privacy?: 'secret' | 'closed';
+      parent_team_id?: number | null;
+      notification_setting?: 'notifications_enabled' | 'notifications_disabled';
+    }
+  ): Promise<GitHubTeamSummary> {
+    try {
+      const payload: {
+        org: string;
+        team_slug: string;
+        name?: string;
+        description?: string;
+        privacy?: 'secret' | 'closed';
+        notification_setting?: 'notifications_enabled' | 'notifications_disabled';
+        parent_team_id?: number | null;
+      } = {
+        org: owner,
+        team_slug: teamSlug,
+      };
+
+      if (params.name !== undefined) {
+        payload.name = params.name;
+      }
+      if (params.description !== undefined && params.description !== null) {
+        payload.description = params.description;
+      }
+      if (params.privacy !== undefined) {
+        payload.privacy = params.privacy;
+      }
+      if (params.notification_setting !== undefined) {
+        payload.notification_setting = params.notification_setting;
+      }
+      if (params.parent_team_id !== undefined) {
+        payload.parent_team_id = params.parent_team_id;
+      }
+
+      const response = await this.octokit.rest.teams.updateInOrg(payload);
+      this.invalidateCache('teams', owner);
+      this.invalidateCache('teamMembers', owner, teamSlug);
+      return response.data as unknown as GitHubTeamSummary;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to update team ${owner}/${teamSlug}: ${message}`);
+    }
+  }
+
+  async listTeamMembers(owner: string, teamSlug: string): Promise<GitHubTeamMember[]> {
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'teamMembers',
+      owner: this.getCacheOwner(owner),
+      identifier: teamSlug,
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const members: GitHubTeamMember[] = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.teams.listMembersInOrg, {
+          org: owner,
+          team_slug: teamSlug,
+          per_page: 100,
+          role: 'all',
+        });
+
+        for await (const { data } of iterator) {
+          members.push(
+            ...(data as unknown[] as { login: string; role: 'member' | 'maintainer' }[])
+          );
+        }
+
+        return members;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to list members for team ${owner}/${teamSlug}: ${message}`);
+      }
+    });
+  }
+
+  async addOrUpdateTeamMembership(
+    owner: string,
+    teamSlug: string,
+    username: string,
+    role: 'member' | 'maintainer'
+  ): Promise<void> {
+    try {
+      await this.octokit.rest.teams.addOrUpdateMembershipForUserInOrg({
+        org: owner,
+        team_slug: teamSlug,
+        username,
+        role,
+      });
+      this.invalidateCache('teamMembers', owner, teamSlug);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to add or update membership for ${username} in ${owner}/${teamSlug}: ${message}`
+      );
+    }
+  }
+
+  async removeTeamMembership(owner: string, teamSlug: string, username: string): Promise<void> {
+    try {
+      await this.octokit.rest.teams.removeMembershipForUserInOrg({
+        org: owner,
+        team_slug: teamSlug,
+        username,
+      });
+      this.invalidateCache('teamMembers', owner, teamSlug);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to remove membership for ${username} from ${owner}/${teamSlug}: ${message}`
+      );
+    }
+  }
+
+  async listOrganizationMembers(owner: string): Promise<OrganizationMember[]> {
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'orgMembers',
+      owner: this.getCacheOwner(owner),
+      identifier: 'members',
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const members: OrganizationMember[] = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.orgs.listMembers, {
+          org: owner,
+          per_page: 100,
+        });
+
+        for await (const { data } of iterator) {
+          members.push(...(data as unknown as OrganizationMember[]));
+        }
+
+        return members;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to list organization members for ${owner}: ${message}`);
       }
     });
   }

@@ -5,6 +5,9 @@ export type CacheNamespace =
   | 'branchProtection'
   | 'collaborators'
   | 'teamPermissions'
+  | 'teams'
+  | 'teamMembers'
+  | 'orgMembers'
   | 'securitySettings'
   | 'vulnerabilityAlerts'
   | 'currentUser';
@@ -17,6 +20,9 @@ export interface CacheTtlConfig {
   branchProtection?: number;
   collaborators?: number;
   teamPermissions?: number;
+  teams?: number;
+  teamMembers?: number;
+  orgMembers?: number;
   securitySettings?: number;
   vulnerabilityAlerts?: number;
   currentUser?: number;
