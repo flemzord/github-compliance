@@ -4,3 +4,4 @@ export * from './config';
 export * from './github';
 export * from './reporting';
 export * from './runner';
+export * from './teams';

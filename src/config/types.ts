@@ -75,6 +75,60 @@ export interface Permissions {
   users?: ConfigUserPermission[];
 }
 
+export type TeamPrivacy = 'secret' | 'closed';
+
+export type TeamNotificationSetting = 'notifications_enabled' | 'notifications_disabled';
+
+export interface TeamMember {
+  username: string;
+  role?: 'member' | 'maintainer';
+}
+
+export interface TeamDefinition {
+  name: string;
+  description?: string;
+  members?: TeamMember[];
+  parent?: string;
+  privacy?: TeamPrivacy;
+  notification_setting?: TeamNotificationSetting;
+}
+
+export interface TeamMemberFilter {
+  usernames?: string[];
+  emails?: string[];
+  from_teams?: string[];
+  exclude_teams?: string[];
+  with_repo_access?: string[];
+}
+
+export interface TeamCompositionDifference {
+  from: string;
+  subtract: string[];
+}
+
+export interface TeamComposition {
+  union?: string[];
+  intersection?: string[];
+  difference?: TeamCompositionDifference;
+}
+
+export interface DynamicTeamRule {
+  name: string;
+  description?: string;
+  type: 'all_org_members' | 'by_filter' | 'composite';
+  filter?: TeamMemberFilter;
+  compose?: TeamComposition;
+}
+
+export type UnmanagedTeamsMode = 'ignore' | 'warn' | 'remove';
+
+export interface TeamsConfig {
+  definitions?: TeamDefinition[];
+  dynamic_rules?: DynamicTeamRule[];
+  dry_run?: boolean;
+  unmanaged_teams?: UnmanagedTeamsMode;
+}
+
 export interface ArchivedRepos {
   admin_team_only: boolean;
   archive_inactive?: boolean;
@@ -114,4 +168,5 @@ export interface ComplianceConfig {
   rules?: Rule[];
   checks?: Checks;
   cache?: CacheConfig;
+  teams?: TeamsConfig;
 }

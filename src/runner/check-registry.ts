@@ -3,6 +3,7 @@ import { BranchProtectionCheck } from '../checks/branch-protection';
 import { MergeMethodsCheck } from '../checks/merge-methods';
 import { SecurityScanningCheck } from '../checks/security-scanning';
 import { TeamPermissionsCheck } from '../checks/team-permissions';
+import { TeamSyncCheck } from '../checks/team-sync';
 import type { CheckRegistry } from './types';
 
 /**
@@ -14,6 +15,7 @@ const checkRegistry: CheckRegistry = {
   'branch-protection': BranchProtectionCheck,
   'security-scanning': SecurityScanningCheck,
   'archived-repos': ArchivedReposCheck,
+  'team-sync': TeamSyncCheck,
 };
 
 /**

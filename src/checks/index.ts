@@ -4,4 +4,5 @@ export * from './branch-protection';
 export * from './merge-methods';
 export * from './security-scanning';
 export * from './team-permissions';
+export * from './team-sync';
 export * from './types';

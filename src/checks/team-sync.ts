@@ -1,0 +1,83 @@
+import type { Logger } from '../logging';
+import * as rootLogger from '../logging';
+import { TeamManager, type TeamSyncOptions } from '../teams';
+import { BaseCheck, type CheckContext, type CheckResult } from './base';
+
+function createLoggerAdapter(): Logger {
+  const noop = (): void => {
+    /* intentional no-op */
+  };
+  return {
+    info: rootLogger.info,
+    warning: rootLogger.warning,
+    error: rootLogger.error,
+    debug: rootLogger.debug,
+    startGroup: noop,
+    endGroup: noop,
+  };
+}
+
+export class TeamSyncCheck extends BaseCheck {
+  readonly name = 'team-sync';
+  readonly description = 'Preview of GitHub team synchronization based on configuration.';
+
+  shouldRun(context: CheckContext): boolean {
+    return context.config.teams !== undefined;
+  }
+
+  async check(context: CheckContext): Promise<CheckResult> {
+    if (!context.config.teams) {
+      return this.createCompliantResult('No team configuration defined for this run.');
+    }
+
+    const options: TeamSyncOptions = { dryRun: true };
+    const unmanagedTeams = context.config.teams.unmanaged_teams;
+    const manager = new TeamManager(
+      context.client,
+      context.config.teams,
+      createLoggerAdapter(),
+      unmanagedTeams !== undefined ? { ...options, unmanagedTeams } : options
+    );
+
+    const result = await manager.sync();
+
+    if (result.hasErrors) {
+      return this.createErrorResult('Team synchronization encountered errors', result.summary);
+    }
+
+    return this.createCompliantResult(result.summary, {
+      findings: result.findings,
+      stats: result.stats,
+    });
+  }
+
+  async fix(context: CheckContext): Promise<CheckResult> {
+    if (!context.config.teams) {
+      return this.createCompliantResult('No team configuration defined for this run.');
+    }
+
+    if (context.dryRun) {
+      return this.check(context);
+    }
+
+    const options: TeamSyncOptions = { dryRun: false };
+    const unmanagedTeams = context.config.teams.unmanaged_teams;
+    const manager = new TeamManager(
+      context.client,
+      context.config.teams,
+      createLoggerAdapter(),
+      unmanagedTeams !== undefined ? { ...options, unmanagedTeams } : options
+    );
+
+    const result = await manager.sync();
+
+    if (result.hasErrors) {
+      return this.createErrorResult('Team synchronization encountered errors', result.summary);
+    }
+
+    return this.createCompliantResult(result.summary, {
+      findings: result.findings,
+      stats: result.stats,
+    });
+  }
+}

@@ -75,6 +75,114 @@ const ConfigUserPermissionSchema = z.object({
   permission: z.enum(['read', 'triage', 'write', 'maintain', 'admin', 'push']),
 });
 
+const TeamMemberSchema = z
+  .object({
+    username: z.string(),
+    role: z.enum(['member', 'maintainer']).optional(),
+  })
+  .strict();
+
+const TeamDefinitionSchema = z
+  .object({
+    name: z.string(),
+    description: z.string().optional(),
+    members: z.array(TeamMemberSchema).optional(),
+    parent: z.string().optional(),
+    privacy: z.enum(['secret', 'closed']).optional(),
+    notification_setting: z.enum(['notifications_enabled', 'notifications_disabled']).optional(),
+  })
+  .strict();
+
+const TeamMemberFilterSchema = z
+  .object({
+    usernames: z.array(z.string()).optional(),
+    emails: z.array(z.string()).optional(),
+    from_teams: z.array(z.string()).optional(),
+    exclude_teams: z.array(z.string()).optional(),
+    with_repo_access: z.array(z.string()).optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      !!(
+        value.usernames?.length ||
+        value.emails?.length ||
+        value.from_teams?.length ||
+        value.exclude_teams?.length ||
+        value.with_repo_access?.length
+      ),
+    {
+      message: 'Team member filter must specify at least one criterion',
+    }
+  );
+
+const TeamCompositionDifferenceSchema = z
+  .object({
+    from: z.string(),
+    subtract: z.array(z.string()).min(1),
+  })
+  .strict();
+
+const TeamCompositionSchema = z
+  .object({
+    union: z.array(z.string()).optional(),
+    intersection: z.array(z.string()).optional(),
+    difference: TeamCompositionDifferenceSchema.optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      !!(value.union?.length || value.intersection?.length || value.difference !== undefined),
+    {
+      message: 'Team composition must include at least one operation',
+    }
+  );
+
+const DynamicTeamRuleSchema = z
+  .object({
+    name: z.string(),
+    description: z.string().optional(),
+    type: z.enum(['all_org_members', 'by_filter', 'composite']),
+    filter: TeamMemberFilterSchema.optional(),
+    compose: TeamCompositionSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.type === 'by_filter' && !value.filter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'by_filter rules require a filter block',
+      });
+    }
+    if (value.type === 'composite' && !value.compose) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'composite rules require a compose block',
+      });
+    }
+    if (value.type !== 'by_filter' && value.filter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Only by_filter rules may specify filter',
+      });
+    }
+    if (value.type !== 'composite' && value.compose) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Only composite rules may specify compose',
+      });
+    }
+  });
+
+const TeamsConfigSchema = z
+  .object({
+    definitions: z.array(TeamDefinitionSchema).optional(),
+    dynamic_rules: z.array(DynamicTeamRuleSchema).optional(),
+    dry_run: z.boolean().optional(),
+    unmanaged_teams: z.enum(['ignore', 'warn', 'remove']).optional(),
+  })
+  .strict();
+
 const CacheTtlSchema = z
   .object({
     default: z.number().int().positive().optional(),
@@ -175,6 +283,7 @@ const ChecksSchema = z.object({
       'branch-protection',
       'security-scanning',
       'archived-repos',
+      'team-sync',
     ])
   ),
 });
@@ -186,6 +295,7 @@ export const ComplianceConfigSchema = z.object({
   rules: z.array(RuleSchema).optional(),
   checks: ChecksSchema.optional(),
   cache: CacheSchema.optional(),
+  teams: TeamsConfigSchema.optional(),
 });
 
 export type ComplianceConfig = z.infer<typeof ComplianceConfigSchema>;

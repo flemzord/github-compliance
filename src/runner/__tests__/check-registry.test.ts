@@ -3,6 +3,7 @@ import { BranchProtectionCheck } from '../../checks/branch-protection';
 import { MergeMethodsCheck } from '../../checks/merge-methods';
 import { SecurityScanningCheck } from '../../checks/security-scanning';
 import { TeamPermissionsCheck } from '../../checks/team-permissions';
+import { TeamSyncCheck } from '../../checks/team-sync';
 import { getAvailableChecks, getCheck } from '../check-registry';
 
 describe('check-registry', () => {
@@ -13,6 +14,7 @@ describe('check-registry', () => {
       expect(getCheck('branch-protection')).toBe(BranchProtectionCheck);
       expect(getCheck('security-scanning')).toBe(SecurityScanningCheck);
       expect(getCheck('archived-repos')).toBe(ArchivedReposCheck);
+      expect(getCheck('team-sync')).toBe(TeamSyncCheck);
     });
 
     it('should throw an error for unknown check names', () => {
@@ -39,6 +41,7 @@ describe('check-registry', () => {
         'branch-protection',
         'security-scanning',
         'archived-repos',
+        'team-sync',
       ]);
     });
 
