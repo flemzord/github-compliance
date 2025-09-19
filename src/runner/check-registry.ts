@@ -17,7 +17,7 @@ const checkRegistry: CheckRegistry = {
   'repo-branch-protection': BranchProtectionCheck,
   'repo-security-controls': SecurityScanningCheck,
   'repo-archival-policy': ArchivedReposCheck,
-  'repository-settings': RepositorySettingsCheck,
+  'repo-settings': RepositorySettingsCheck,
 };
 
 const legacyCheckAliases: Record<string, keyof typeof checkRegistry> = {
@@ -27,6 +27,7 @@ const legacyCheckAliases: Record<string, keyof typeof checkRegistry> = {
   'branch-protection': 'repo-branch-protection',
   'security-scanning': 'repo-security-controls',
   'archived-repos': 'repo-archival-policy',
+  'repository-settings': 'repo-settings',
 };
 
 /**

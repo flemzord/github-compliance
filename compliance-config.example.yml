@@ -105,4 +105,4 @@ checks:
     - "repo-branch-protection"
     - "repo-security-controls"
     - "repo-archival-policy"
-    - "repository-settings"
+    - "repo-settings"

@@ -344,11 +344,12 @@ const LEGACY_CHECK_NAMES = [
   'branch-protection',
   'security-scanning',
   'archived-repos',
+  'repository-settings',
 ] as const;
 
 const LEGACY_CHECK_NAME_ALIASES: Record<
   (typeof LEGACY_CHECK_NAMES)[number],
-  (typeof NEW_CHECK_NAMES)[number]
+  (typeof NEW_CHECK_NAMES)[number] | 'repo-settings'
 > = {
   'team-sync': 'org-team-sync',
   'merge-methods': 'repo-merge-strategy',
@@ -356,14 +357,11 @@ const LEGACY_CHECK_NAME_ALIASES: Record<
   'branch-protection': 'repo-branch-protection',
   'security-scanning': 'repo-security-controls',
   'archived-repos': 'repo-archival-policy',
+  'repository-settings': 'repo-settings',
 };
 
 const CheckNameSchema = z
-  .union([
-    z.enum(NEW_CHECK_NAMES),
-    z.enum(LEGACY_CHECK_NAMES),
-    z.literal('repository-settings')
-  ])
+  .union([z.enum(NEW_CHECK_NAMES), z.enum(LEGACY_CHECK_NAMES), z.literal('repo-settings')])
   .transform(
     (value) => LEGACY_CHECK_NAME_ALIASES[value as (typeof LEGACY_CHECK_NAMES)[number]] ?? value
   );

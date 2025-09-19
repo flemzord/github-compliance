@@ -16,6 +16,7 @@ describe('check-registry', () => {
       expect(getCheck('repo-branch-protection')).toBe(BranchProtectionCheck);
       expect(getCheck('repo-security-controls')).toBe(SecurityScanningCheck);
       expect(getCheck('repo-archival-policy')).toBe(ArchivedReposCheck);
+      expect(getCheck('repo-settings')).toBe(RepositorySettingsCheck);
     });
 
     it('should support legacy check name aliases', () => {
@@ -53,7 +54,7 @@ describe('check-registry', () => {
         'repo-branch-protection',
         'repo-security-controls',
         'repo-archival-policy',
-        'repository-settings',
+        'repo-settings',
       ]);
     });
 

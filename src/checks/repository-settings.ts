@@ -14,7 +14,7 @@ interface VisibilityState {
 }
 
 export class RepositorySettingsCheck extends BaseCheck {
-  readonly name = 'repository-settings';
+  readonly name = 'repo-settings';
   readonly description = 'Verify repository feature toggles, visibility, and workflow settings';
 
   private readonly issueTemplatePaths = [

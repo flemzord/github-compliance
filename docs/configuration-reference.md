@@ -414,7 +414,7 @@ Specifies which compliance checks to run.
 - `repo-branch-protection`: Ensures branch protection rules are configured
 - `repo-security-controls`: Validates security features are enabled
 - `repo-archival-policy`: Validates archived repository settings
-- `repository-settings`: Validates repository-level options (features, visibility, templates)
+- `repo-settings`: Validates repository-level options (features, visibility, templates)
 
 **Example**:
 ```yaml
@@ -426,13 +426,13 @@ checks:
     - repo-branch-protection
     - repo-security-controls
     - repo-archival-policy
-    - repository-settings
+    - repo-settings
 ```
 
 If not specified, all checks are enabled by default.
 
 > Legacy identifiers (merge-methods, team-permissions, branch-protection,
-> security-scanning, archived-repos, team-sync) are still accepted and
+> security-scanning, archived-repos, team-sync, repository-settings) are still accepted and
 > automatically mapped to the new names.
 
 ## Complete Configuration Example
@@ -576,7 +576,7 @@ checks:
     - branch-protection
     - security-scanning
     - archived-repos
-    - repository-settings
+    - repo-settings
 >>>>>>> 2644f36 (feat: add repository settings compliance check)
 ```
 
