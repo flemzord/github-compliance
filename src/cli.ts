@@ -267,6 +267,7 @@ async function validateCommand(options: ValidateOptions): Promise<void> {
           if (defaults.security) checkTypes.push('repo-security-controls');
           if (defaults.permissions) checkTypes.push('repo-access-teams');
           if (defaults.archived_repos) checkTypes.push('repo-archival-policy');
+          if (defaults.repository_settings) checkTypes.push('repo-settings');
 
           if (checkTypes.length > 0) {
             logger.info(`  Configured checks: ${checkTypes.join(', ')}`);

@@ -664,6 +664,27 @@ export class GitHubClient {
   }
 
   /**
+   * Check if a path exists in the repository
+   */
+  async pathExists(owner: string, repo: string, path: string): Promise<boolean> {
+    try {
+      await this.octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path,
+      });
+      return true;
+    } catch (error) {
+      if (isStatusError(error, 404)) {
+        return false;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to access ${owner}/${repo} path ${path}: ${message}`);
+    }
+  }
+
+  /**
    * Add or update team permission for repository
    */
   async addTeamToRepository(

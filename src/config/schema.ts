@@ -247,6 +247,57 @@ const ArchivedReposSchema = z.object({
   specific_repos: z.array(z.string()).optional(),
 });
 
+const RepositoryFeaturesSchema = z
+  .object({
+    has_issues: z.boolean().optional(),
+    has_projects: z.boolean().optional(),
+    has_wiki: z.boolean().optional(),
+    has_discussions: z.boolean().optional(),
+    has_pages: z.boolean().optional(),
+  })
+  .strict();
+
+const RepositoryVisibilitySchema = z
+  .object({
+    allow_public: z.boolean().optional(),
+    enforce_private: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.allow_public && value.enforce_private) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'allow_public cannot be true when enforce_private is true',
+        path: ['allow_public'],
+      });
+    }
+  });
+
+const RepositoryGeneralSettingsSchema = z
+  .object({
+    allow_auto_merge: z.boolean().optional(),
+    delete_branch_on_merge: z.boolean().optional(),
+    allow_update_branch: z.boolean().optional(),
+    use_squash_pr_title_as_default: z.boolean().optional(),
+  })
+  .strict();
+
+const RepositoryTemplatesSchema = z
+  .object({
+    require_issue_templates: z.boolean().optional(),
+    require_pr_template: z.boolean().optional(),
+  })
+  .strict();
+
+const RepositorySettingsSchema = z
+  .object({
+    features: RepositoryFeaturesSchema.optional(),
+    visibility: RepositoryVisibilitySchema.optional(),
+    general: RepositoryGeneralSettingsSchema.optional(),
+    templates: RepositoryTemplatesSchema.optional(),
+  })
+  .strict();
+
 const DefaultsSchema = z
   .object({
     merge_methods: MergeMethodsSchema,
@@ -254,6 +305,7 @@ const DefaultsSchema = z
     security: SecuritySchema,
     permissions: PermissionsSchema,
     archived_repos: ArchivedReposSchema,
+    repository_settings: RepositorySettingsSchema,
   })
   .partial();
 
@@ -271,6 +323,7 @@ const RuleSchema = z.object({
       security: SecuritySchema.partial(),
       permissions: PermissionsSchema.partial(),
       archived_repos: ArchivedReposSchema.partial(),
+      repository_settings: RepositorySettingsSchema.partial(),
     })
     .partial(),
 });
@@ -291,11 +344,12 @@ const LEGACY_CHECK_NAMES = [
   'branch-protection',
   'security-scanning',
   'archived-repos',
+  'repository-settings',
 ] as const;
 
 const LEGACY_CHECK_NAME_ALIASES: Record<
   (typeof LEGACY_CHECK_NAMES)[number],
-  (typeof NEW_CHECK_NAMES)[number]
+  (typeof NEW_CHECK_NAMES)[number] | 'repo-settings'
 > = {
   'team-sync': 'org-team-sync',
   'merge-methods': 'repo-merge-strategy',
@@ -303,10 +357,11 @@ const LEGACY_CHECK_NAME_ALIASES: Record<
   'branch-protection': 'repo-branch-protection',
   'security-scanning': 'repo-security-controls',
   'archived-repos': 'repo-archival-policy',
+  'repository-settings': 'repo-settings',
 };
 
 const CheckNameSchema = z
-  .union([z.enum(NEW_CHECK_NAMES), z.enum(LEGACY_CHECK_NAMES)])
+  .union([z.enum(NEW_CHECK_NAMES), z.enum(LEGACY_CHECK_NAMES), z.literal('repo-settings')])
   .transform(
     (value) => LEGACY_CHECK_NAME_ALIASES[value as (typeof LEGACY_CHECK_NAMES)[number]] ?? value
   );

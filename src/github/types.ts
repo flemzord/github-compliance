@@ -18,6 +18,19 @@ export interface Repository {
   open_issues_count: number;
   size: number;
   language: string | null;
+  visibility?: 'public' | 'private' | 'internal';
+  has_issues?: boolean;
+  has_projects?: boolean;
+  has_wiki?: boolean;
+  has_discussions?: boolean;
+  has_pages?: boolean;
+  allow_auto_merge?: boolean;
+  delete_branch_on_merge?: boolean;
+  allow_update_branch?: boolean;
+  use_squash_pr_title_as_default?: boolean;
+  allow_merge_commit?: boolean;
+  allow_squash_merge?: boolean;
+  allow_rebase_merge?: boolean;
   permissions?: {
     admin: boolean;
     maintain: boolean;
@@ -125,6 +138,14 @@ export interface RepositorySettings {
   delete_branch_on_merge: boolean;
   archived: boolean;
   disabled: boolean;
+  has_issues?: boolean;
+  has_projects?: boolean;
+  has_wiki?: boolean;
+  has_discussions?: boolean;
+  has_pages?: boolean;
+  allow_auto_merge?: boolean;
+  allow_update_branch?: boolean;
+  use_squash_pr_title_as_default?: boolean;
 }
 
 export interface GitHubClientOptions {

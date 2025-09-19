@@ -1,6 +1,7 @@
 import { ArchivedReposCheck } from '../../checks/archived-repos';
 import { BranchProtectionCheck } from '../../checks/branch-protection';
 import { MergeMethodsCheck } from '../../checks/merge-methods';
+import { RepositorySettingsCheck } from '../../checks/repository-settings';
 import { SecurityScanningCheck } from '../../checks/security-scanning';
 import { TeamPermissionsCheck } from '../../checks/team-permissions';
 import { TeamSyncCheck } from '../../checks/team-sync';
@@ -15,6 +16,7 @@ describe('check-registry', () => {
       expect(getCheck('repo-branch-protection')).toBe(BranchProtectionCheck);
       expect(getCheck('repo-security-controls')).toBe(SecurityScanningCheck);
       expect(getCheck('repo-archival-policy')).toBe(ArchivedReposCheck);
+      expect(getCheck('repo-settings')).toBe(RepositorySettingsCheck);
     });
 
     it('should support legacy check name aliases', () => {
@@ -24,6 +26,7 @@ describe('check-registry', () => {
       expect(getCheck('branch-protection')).toBe(BranchProtectionCheck);
       expect(getCheck('security-scanning')).toBe(SecurityScanningCheck);
       expect(getCheck('archived-repos')).toBe(ArchivedReposCheck);
+      expect(getCheck('repository-settings')).toBe(RepositorySettingsCheck);
     });
 
     it('should throw an error for unknown check names', () => {
@@ -51,6 +54,7 @@ describe('check-registry', () => {
         'repo-branch-protection',
         'repo-security-controls',
         'repo-archival-policy',
+        'repo-settings',
       ]);
     });
 

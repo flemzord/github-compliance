@@ -43,6 +43,26 @@ defaults:
     dependabot_updates: true
     code_scanning_recommended: true
 
+  # Repository feature & workflow settings
+  repository_settings:
+    features:
+      has_issues: true
+      has_projects: false
+      has_wiki: false
+      has_discussions: false
+      has_pages: false
+    visibility:
+      allow_public: false
+      enforce_private: true
+    general:
+      allow_auto_merge: true
+      delete_branch_on_merge: true
+      allow_update_branch: true
+      use_squash_pr_title_as_default: true
+    templates:
+      require_issue_templates: true
+      require_pr_template: true
+
   # Team permissions
   permissions:
     remove_individual_collaborators: true
@@ -85,3 +105,4 @@ checks:
     - "repo-branch-protection"
     - "repo-security-controls"
     - "repo-archival-policy"
+    - "repo-settings"
