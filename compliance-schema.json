@@ -4,7 +4,10 @@
   "title": "GitHub Compliance Configuration",
   "description": "Configuration schema for GitHub repository compliance enforcement",
   "type": "object",
-  "required": ["version", "defaults"],
+  "required": [
+    "version",
+    "defaults"
+  ],
   "properties": {
     "version": {
       "type": "integer",
@@ -46,7 +49,10 @@
       "description": "Repository-specific overrides based on patterns or criteria",
       "items": {
         "type": "object",
-        "required": ["match", "apply"],
+        "required": [
+          "match",
+          "apply"
+        ],
         "properties": {
           "match": {
             "type": "object",
@@ -95,16 +101,261 @@
         "additionalProperties": false
       }
     },
+    "checks": {
+      "$ref": "#/definitions/checks"
+    },
     "cache": {
       "$ref": "#/definitions/cache"
+    },
+    "teams": {
+      "$ref": "#/definitions/teams"
     }
   },
   "additionalProperties": false,
   "definitions": {
+    "checks": {
+      "type": "object",
+      "description": "Configures which compliance checks to enable",
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "description": "List of enabled compliance checks",
+          "items": {
+            "type": "string",
+            "enum": [
+              "org-team-sync",
+              "repo-merge-strategy",
+              "repo-access-teams",
+              "repo-branch-protection",
+              "repo-security-controls",
+              "repo-archival-policy",
+              "repo-settings",
+              "team-sync",
+              "merge-methods",
+              "team-permissions",
+              "branch-protection",
+              "security-scanning",
+              "archived-repos",
+              "repository-settings"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "teams": {
+      "type": "object",
+      "description": "GitHub team synchronization configuration",
+      "properties": {
+        "definitions": {
+          "type": "array",
+          "description": "Static team definitions",
+          "items": {
+            "$ref": "#/definitions/team_definition"
+          }
+        },
+        "dynamic_rules": {
+          "type": "array",
+          "description": "Dynamic team membership rules",
+          "items": {
+            "$ref": "#/definitions/dynamic_team_rule"
+          }
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Run in dry-run mode (no changes applied)"
+        },
+        "unmanaged_teams": {
+          "type": "string",
+          "enum": [
+            "ignore",
+            "warn",
+            "remove"
+          ],
+          "description": "How to handle teams not defined in configuration"
+        }
+      },
+      "additionalProperties": false
+    },
+    "team_definition": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Team name/slug"
+        },
+        "description": {
+          "type": "string",
+          "description": "Team description"
+        },
+        "members": {
+          "type": "array",
+          "description": "Team members",
+          "items": {
+            "$ref": "#/definitions/team_member"
+          }
+        },
+        "parent": {
+          "type": "string",
+          "description": "Parent team slug for nested teams"
+        },
+        "privacy": {
+          "type": "string",
+          "enum": [
+            "secret",
+            "closed"
+          ],
+          "description": "Team visibility"
+        },
+        "notification_setting": {
+          "type": "string",
+          "enum": [
+            "notifications_enabled",
+            "notifications_disabled"
+          ],
+          "description": "Team notification settings"
+        }
+      },
+      "additionalProperties": false
+    },
+    "team_member": {
+      "type": "object",
+      "required": [
+        "username"
+      ],
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "GitHub username"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "member",
+            "maintainer"
+          ],
+          "description": "Role in the team"
+        }
+      },
+      "additionalProperties": false
+    },
+    "dynamic_team_rule": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Team name to create/update"
+        },
+        "description": {
+          "type": "string",
+          "description": "Team description"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "all_org_members",
+            "by_filter",
+            "composite"
+          ],
+          "description": "Type of dynamic rule"
+        },
+        "filter": {
+          "$ref": "#/definitions/team_member_filter"
+        },
+        "compose": {
+          "$ref": "#/definitions/team_composition"
+        }
+      },
+      "additionalProperties": false
+    },
+    "team_member_filter": {
+      "type": "object",
+      "description": "Filter criteria for team members",
+      "properties": {
+        "usernames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "emails": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "from_teams": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude_teams": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "with_repo_access": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "team_composition": {
+      "type": "object",
+      "description": "Team composition operations",
+      "properties": {
+        "union": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "intersection": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "difference": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "subtract": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "from",
+            "subtract"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "cache": {
       "type": "object",
       "description": "Configures caching for GitHub API responses",
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -112,7 +363,9 @@
         },
         "storage": {
           "type": "string",
-          "enum": ["memory"],
+          "enum": [
+            "memory"
+          ],
           "description": "Storage backend for cache entries"
         },
         "storagePath": {
@@ -201,7 +454,9 @@
     },
     "cache_feature_toggle": {
       "type": "object",
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
         "enabled": {
           "type": "boolean",
@@ -274,7 +529,11 @@
     "merge_methods": {
       "type": "object",
       "description": "Controls which merge strategies are allowed for pull requests",
-      "required": ["allow_merge_commit", "allow_squash_merge", "allow_rebase_merge"],
+      "required": [
+        "allow_merge_commit",
+        "allow_squash_merge",
+        "allow_rebase_merge"
+      ],
       "properties": {
         "allow_merge_commit": {
           "type": "boolean",
@@ -310,7 +569,9 @@
     "branch_protection_defaults": {
       "type": "object",
       "description": "Configures branch protection rules for repositories (defaults section - most fields optional)",
-      "required": ["patterns"],
+      "required": [
+        "patterns"
+      ],
       "properties": {
         "patterns": {
           "type": "array",
@@ -318,7 +579,13 @@
           "items": {
             "type": "string"
           },
-          "examples": [["main", "release/*", "develop"]]
+          "examples": [
+            [
+              "main",
+              "release/*",
+              "develop"
+            ]
+          ]
         },
         "enforce_admins": {
           "type": "boolean",
@@ -386,7 +653,13 @@
           "items": {
             "type": "string"
           },
-          "examples": [["main", "release/*", "develop"]]
+          "examples": [
+            [
+              "main",
+              "release/*",
+              "develop"
+            ]
+          ]
         },
         "enforce_admins": {
           "type": "boolean",
@@ -521,7 +794,11 @@
     },
     "required_status_checks": {
       "type": "object",
-      "required": ["strict", "contexts", "auto_discover"],
+      "required": [
+        "strict",
+        "contexts",
+        "auto_discover"
+      ],
       "properties": {
         "strict": {
           "type": "boolean",
@@ -533,7 +810,12 @@
           "items": {
             "type": "string"
           },
-          "examples": [["continuous-integration/travis-ci", "ci/circleci"]]
+          "examples": [
+            [
+              "continuous-integration/travis-ci",
+              "ci/circleci"
+            ]
+          ]
         },
         "auto_discover": {
           "type": "boolean",
@@ -563,7 +845,10 @@
     "restrictions": {
       "type": "object",
       "description": "Restrict who can push to protected branches",
-      "required": ["users", "teams"],
+      "required": [
+        "users",
+        "teams"
+      ],
       "properties": {
         "users": {
           "type": "array",
@@ -584,7 +869,10 @@
       "examples": [
         {
           "users": [],
-          "teams": ["admin-team", "release-team"]
+          "teams": [
+            "admin-team",
+            "release-team"
+          ]
         },
         {
           "users": [],
@@ -623,12 +911,19 @@
       "properties": {
         "secret_scanning": {
           "type": "string",
-          "enum": ["enabled", "disabled"],
+          "enum": [
+            "enabled",
+            "disabled"
+          ],
           "description": "GitHub secret scanning in code"
         },
         "secret_scanning_push_protection": {
           "type": "string",
-          "enum": ["enabled", "disabled", "auto"],
+          "enum": [
+            "enabled",
+            "disabled",
+            "auto"
+          ],
           "description": "Block pushes containing secrets"
         },
         "dependabot_alerts": {
@@ -651,11 +946,18 @@
       "properties": {
         "secret_scanning": {
           "type": "string",
-          "enum": ["enabled", "disabled"]
+          "enum": [
+            "enabled",
+            "disabled"
+          ]
         },
         "secret_scanning_push_protection": {
           "type": "string",
-          "enum": ["enabled", "disabled", "auto"]
+          "enum": [
+            "enabled",
+            "disabled",
+            "auto"
+          ]
         },
         "dependabot_alerts": {
           "type": "boolean"
@@ -672,7 +974,10 @@
     "permissions": {
       "type": "object",
       "description": "Defines team access levels and collaborator management",
-      "required": ["remove_individual_collaborators", "teams"],
+      "required": [
+        "remove_individual_collaborators",
+        "teams"
+      ],
       "properties": {
         "remove_individual_collaborators": {
           "type": "boolean",
@@ -718,7 +1023,10 @@
     },
     "team_permission": {
       "type": "object",
-      "required": ["team", "permission"],
+      "required": [
+        "team",
+        "permission"
+      ],
       "properties": {
         "team": {
           "type": "string",
@@ -726,7 +1034,14 @@
         },
         "permission": {
           "type": "string",
-          "enum": ["read", "triage", "write", "maintain", "admin", "push"],
+          "enum": [
+            "read",
+            "triage",
+            "write",
+            "maintain",
+            "admin",
+            "push"
+          ],
           "description": "Permission level: read < triage < write/push < maintain < admin"
         }
       },
@@ -734,7 +1049,10 @@
     },
     "user_permission": {
       "type": "object",
-      "required": ["user", "permission"],
+      "required": [
+        "user",
+        "permission"
+      ],
       "properties": {
         "user": {
           "type": "string",
@@ -742,7 +1060,14 @@
         },
         "permission": {
           "type": "string",
-          "enum": ["read", "triage", "write", "maintain", "admin", "push"],
+          "enum": [
+            "read",
+            "triage",
+            "write",
+            "maintain",
+            "admin",
+            "push"
+          ],
           "description": "Permission level: read < triage < write/push < maintain < admin"
         }
       },
@@ -751,7 +1076,9 @@
     "archived_repos": {
       "type": "object",
       "description": "Controls access and management of archived repositories",
-      "required": ["admin_team_only"],
+      "required": [
+        "admin_team_only"
+      ],
       "properties": {
         "admin_team_only": {
           "type": "boolean",
@@ -883,7 +1210,10 @@
                 "const": true
               }
             },
-            "required": ["allow_public", "enforce_private"]
+            "required": [
+              "allow_public",
+              "enforce_private"
+            ]
           }
         }
       ]

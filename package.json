@@ -24,7 +24,8 @@
     "lint:types": "tsc --noEmit",
     "format": "biome format --write .",
     "prepare": "npm run build",
-    "pre-commit": "npm run lint:fix && npm run test:coverage"
+    "pre-commit": "npm run lint:fix && npm run test:coverage && npm run generate:schema",
+    "generate:schema": "tsx scripts/generate-json-schema.ts"
   },
   "keywords": [
     "github",
