@@ -9,6 +9,13 @@
     "ignoreUnknown": false,
     "includes": ["src/**/*", "*.js", "*.ts", "*.json"]
   },
+  "overrides": [
+    {
+      "includes": ["compliance-schema.json"],
+      "formatter": { "enabled": false },
+      "linter": { "enabled": false }
+    }
+  ],
   "javascript": {
     "globals": ["jest", "describe", "it", "expect", "beforeEach", "afterEach", "require", "module"],
     "formatter": {
