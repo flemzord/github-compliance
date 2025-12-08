@@ -81,6 +81,17 @@ defaults:
 
 # Override rules for specific repositories (optional)
 rules:
+  # Skip compliance checks for specific repositories (POCs, internal tools, etc.)
+  # Supports wildcards: * matches any characters, ? matches single character
+  - match:
+      repositories:
+        - "poc-*"           # All proof-of-concept repos
+        - "infra"           # Infrastructure repo
+        - "internal"        # Internal tools
+        - "homebrew-tap"    # Homebrew formula
+        - "docs-*"          # Documentation repos
+    skip_checks: true
+
   # Private repositories get stricter settings
   - match:
       only_private: true

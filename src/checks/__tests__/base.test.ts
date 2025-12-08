@@ -510,6 +510,221 @@ describe('BaseCheck', () => {
     });
   });
 
+  describe('skip_checks functionality', () => {
+    describe('isRepositoryExcluded', () => {
+      it('should return false when no rules exist', () => {
+        const configWithoutRules = { ...mockConfig };
+        delete (configWithoutRules as ComplianceConfig & { rules?: unknown }).rules;
+        const contextWithoutRules = { ...context, config: configWithoutRules };
+
+        expect(
+          (testCheck as unknown as TestableBaseCheck).isRepositoryExcluded(contextWithoutRules)
+        ).toBe(false);
+      });
+
+      it('should return false when no skip_checks rules match', () => {
+        const configWithSkipRule: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['other-*'] },
+              skip_checks: true,
+            },
+          ],
+        };
+        const contextWithSkipRule = { ...context, config: configWithSkipRule };
+
+        expect(
+          (testCheck as unknown as TestableBaseCheck).isRepositoryExcluded(contextWithSkipRule)
+        ).toBe(false);
+      });
+
+      it('should return true when skip_checks rule matches by exact name', () => {
+        const configWithSkipRule: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['test-repo'] },
+              skip_checks: true,
+            },
+          ],
+        };
+        const contextWithSkipRule = { ...context, config: configWithSkipRule };
+
+        expect(
+          (testCheck as unknown as TestableBaseCheck).isRepositoryExcluded(contextWithSkipRule)
+        ).toBe(true);
+      });
+
+      it('should return true when skip_checks rule matches by wildcard pattern', () => {
+        const configWithSkipRule: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['poc-*', 'test-*'] },
+              skip_checks: true,
+            },
+          ],
+        };
+        const contextWithSkipRule = { ...context, config: configWithSkipRule };
+
+        expect(
+          (testCheck as unknown as TestableBaseCheck).isRepositoryExcluded(contextWithSkipRule)
+        ).toBe(true);
+      });
+
+      it('should return true when skip_checks rule matches by privacy', () => {
+        const privateRepo = { ...mockRepository, private: true };
+        const configWithSkipRule: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { only_private: true },
+              skip_checks: true,
+            },
+          ],
+        };
+        const contextWithSkipRule = {
+          ...context,
+          config: configWithSkipRule,
+          repository: privateRepo,
+        };
+
+        expect(
+          (testCheck as unknown as TestableBaseCheck).isRepositoryExcluded(contextWithSkipRule)
+        ).toBe(true);
+      });
+
+      it('should return false when skip_checks is false', () => {
+        const configWithSkipFalse: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['test-*'] },
+              skip_checks: false,
+              apply: {},
+            },
+          ],
+        };
+        const contextWithSkipFalse = { ...context, config: configWithSkipFalse };
+
+        expect(
+          (testCheck as unknown as TestableBaseCheck).isRepositoryExcluded(contextWithSkipFalse)
+        ).toBe(false);
+      });
+
+      it('should return false when rule has apply but no skip_checks', () => {
+        const configWithApplyOnly: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['test-*'] },
+              apply: {
+                merge_methods: {
+                  allow_merge_commit: false,
+                  allow_squash_merge: true,
+                  allow_rebase_merge: true,
+                },
+              },
+            },
+          ],
+        };
+        const contextWithApplyOnly = { ...context, config: configWithApplyOnly };
+
+        expect(
+          (testCheck as unknown as TestableBaseCheck).isRepositoryExcluded(contextWithApplyOnly)
+        ).toBe(false);
+      });
+    });
+
+    describe('shouldRun with skip_checks', () => {
+      it('should return true when repository is not excluded', () => {
+        expect(testCheck.shouldRun(context)).toBe(true);
+      });
+
+      it('should return false when repository matches skip_checks rule', () => {
+        const configWithSkipRule: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['test-*'] },
+              skip_checks: true,
+            },
+          ],
+        };
+        const contextWithSkipRule = { ...context, config: configWithSkipRule };
+
+        expect(testCheck.shouldRun(contextWithSkipRule)).toBe(false);
+      });
+
+      it('should skip POC repositories with poc-* pattern', () => {
+        const pocRepo = { ...mockRepository, name: 'poc-new-feature' };
+        const configWithPocSkip: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['poc-*'] },
+              skip_checks: true,
+            },
+          ],
+        };
+        const pocContext = { ...context, config: configWithPocSkip, repository: pocRepo };
+
+        expect(testCheck.shouldRun(pocContext)).toBe(false);
+      });
+
+      it('should not skip non-POC repositories with poc-* pattern', () => {
+        const regularRepo = { ...mockRepository, name: 'production-app' };
+        const configWithPocSkip: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: { repositories: ['poc-*'] },
+              skip_checks: true,
+            },
+          ],
+        };
+        const regularContext = { ...context, config: configWithPocSkip, repository: regularRepo };
+
+        expect(testCheck.shouldRun(regularContext)).toBe(true);
+      });
+
+      it('should handle multiple skip patterns', () => {
+        const configWithMultipleSkip: ComplianceConfig = {
+          ...mockConfig,
+          rules: [
+            {
+              match: {
+                repositories: [
+                  'poc-*',
+                  'infra',
+                  'internal',
+                  'website-v3',
+                  'platform-dev-envs',
+                  'docs-mint',
+                  'homebrew-tap',
+                ],
+              },
+              skip_checks: true,
+            },
+          ],
+        };
+
+        const infraRepo = { ...mockRepository, name: 'infra' };
+        const infraContext = { ...context, config: configWithMultipleSkip, repository: infraRepo };
+        expect(testCheck.shouldRun(infraContext)).toBe(false);
+
+        const pocRepo = { ...mockRepository, name: 'poc-experiment' };
+        const pocContext = { ...context, config: configWithMultipleSkip, repository: pocRepo };
+        expect(testCheck.shouldRun(pocContext)).toBe(false);
+
+        const prodRepo = { ...mockRepository, name: 'production-api' };
+        const prodContext = { ...context, config: configWithMultipleSkip, repository: prodRepo };
+        expect(testCheck.shouldRun(prodContext)).toBe(true);
+      });
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle empty patterns array', () => {
       expect((testCheck as unknown as TestableBaseCheck).matchesPattern('test-repo', [])).toBe(

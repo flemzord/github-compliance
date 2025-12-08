@@ -16,6 +16,7 @@ export interface TestableBaseCheck {
   getRepoInfo(repository: Repository): { owner: string; repo: string };
   matchesPattern(name: string, patterns: string[]): boolean;
   matchesRepositoryRule(repository: Repository, rule: Record<string, unknown>): boolean;
+  isRepositoryExcluded(context: TestContext): boolean;
 }
 
 export interface TestableBranchProtectionCheck {

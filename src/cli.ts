@@ -287,8 +287,13 @@ async function validateCommand(options: ValidateOptions): Promise<void> {
               if (rule.match.only_private !== undefined) {
                 logger.info(`    Only private: ${rule.match.only_private}`);
               }
-              const appliedChecks = Object.keys(rule.apply);
-              logger.info(`    Applies: ${appliedChecks.join(', ')}`);
+              if (rule.skip_checks) {
+                logger.info(`    Skip checks: true`);
+              }
+              if (rule.apply) {
+                const appliedChecks = Object.keys(rule.apply);
+                logger.info(`    Applies: ${appliedChecks.join(', ')}`);
+              }
             }
           }
         }

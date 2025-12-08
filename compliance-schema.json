@@ -50,8 +50,7 @@
       "items": {
         "type": "object",
         "required": [
-          "match",
-          "apply"
+          "match"
         ],
         "properties": {
           "match": {
@@ -96,6 +95,10 @@
               }
             },
             "additionalProperties": false
+          },
+          "skip_checks": {
+            "type": "boolean",
+            "description": "Skip all compliance checks for matched repositories (exclude from compliance)"
           }
         },
         "additionalProperties": false

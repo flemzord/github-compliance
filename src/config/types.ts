@@ -207,7 +207,8 @@ export interface MatchCriteria {
 
 export interface Rule {
   match: MatchCriteria;
-  apply: Partial<Defaults>;
+  apply?: Partial<Defaults>;
+  skip_checks?: boolean;
 }
 
 export interface Checks {

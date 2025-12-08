@@ -41,10 +41,29 @@ export abstract class BaseCheck implements ComplianceCheck {
   abstract readonly description: string;
 
   /**
-   * Default implementation - runs for all repositories
+   * Default implementation - runs for all repositories unless skip_checks rule matches
    */
-  shouldRun(_context: CheckContext): boolean {
-    return true;
+  shouldRun(context: CheckContext): boolean {
+    return !this.isRepositoryExcluded(context);
+  }
+
+  /**
+   * Check if repository should be excluded based on skip_checks rules
+   */
+  protected isRepositoryExcluded(context: CheckContext): boolean {
+    const { config, repository } = context;
+
+    if (!config.rules) {
+      return false;
+    }
+
+    for (const rule of config.rules) {
+      if (rule.skip_checks && this.matchesRepositoryRule(repository, rule.match)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -155,7 +174,7 @@ export abstract class BaseCheck implements ComplianceCheck {
     if (config.rules) {
       for (const rule of config.rules) {
         const matches = this.matchesRepositoryRule(repository, rule.match);
-        if (matches && rule.apply[configKey]) {
+        if (matches && rule.apply && rule.apply[configKey]) {
           // Merge rule config with defaults
           repoConfig = { ...repoConfig, ...rule.apply[configKey] } as typeof repoConfig;
         }
@@ -168,7 +187,7 @@ export abstract class BaseCheck implements ComplianceCheck {
   /**
    * Check if repository matches a rule's criteria
    */
-  private matchesRepositoryRule(repository: Repository, match: MatchCriteria): boolean {
+  protected matchesRepositoryRule(repository: Repository, match: MatchCriteria): boolean {
     // Check repository patterns
     if (match.repositories) {
       const matches = this.matchesPattern(repository.name, match.repositories);
