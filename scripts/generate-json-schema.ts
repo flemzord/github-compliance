@@ -54,7 +54,7 @@ const jsonSchema = {
         "Repository-specific overrides based on patterns or criteria",
       items: {
         type: "object",
-        required: ["match", "apply"],
+        required: ["match"],
         properties: {
           match: {
             type: "object",
@@ -99,6 +99,11 @@ const jsonSchema = {
               },
             },
             additionalProperties: false,
+          },
+          skip_checks: {
+            type: "boolean",
+            description:
+              "Skip all compliance checks for matched repositories (exclude from compliance)",
           },
         },
         additionalProperties: false,

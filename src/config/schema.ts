@@ -325,7 +325,9 @@ const RuleSchema = z.object({
       archived_repos: ArchivedReposSchema.partial(),
       repository_settings: RepositorySettingsSchema.partial(),
     })
-    .partial(),
+    .partial()
+    .optional(),
+  skip_checks: z.boolean().optional(),
 });
 
 const NEW_CHECK_NAMES = [
