@@ -7,6 +7,7 @@ export class BranchProtectionCheck extends BaseCheck {
   readonly description = 'Verify repository branch protection rules';
 
   shouldRun(context: CheckContext): boolean {
+    if (!super.shouldRun(context)) return false;
     const config = this.getRepoConfig(context, 'branch_protection');
     return config !== undefined;
   }

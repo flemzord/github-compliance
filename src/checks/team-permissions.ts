@@ -7,6 +7,7 @@ export class TeamPermissionsCheck extends BaseCheck {
   readonly description = 'Verify repository team permissions and collaborator access';
 
   shouldRun(context: CheckContext): boolean {
+    if (!super.shouldRun(context)) return false;
     const config = this.getRepoConfig(context, 'permissions');
     return config !== undefined;
   }

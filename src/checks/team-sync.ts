@@ -22,6 +22,7 @@ export class TeamSyncCheck extends BaseCheck {
   readonly description = 'Preview of GitHub team synchronization based on configuration.';
 
   shouldRun(context: CheckContext): boolean {
+    if (!super.shouldRun(context)) return false;
     return context.config.teams !== undefined;
   }
 

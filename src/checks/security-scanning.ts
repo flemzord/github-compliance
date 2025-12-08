@@ -14,6 +14,7 @@ export class SecurityScanningCheck extends BaseCheck {
   readonly description = 'Verify repository security scanning settings';
 
   shouldRun(context: CheckContext): boolean {
+    if (!super.shouldRun(context)) return false;
     const config = this.getRepoConfig(context, 'security');
     return config !== undefined;
   }

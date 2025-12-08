@@ -33,6 +33,7 @@ export class RepositorySettingsCheck extends BaseCheck {
   ];
 
   shouldRun(context: CheckContext): boolean {
+    if (!super.shouldRun(context)) return false;
     const config = this.getRepoConfig(context, 'repository_settings');
     return config !== undefined;
   }

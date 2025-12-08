@@ -7,6 +7,7 @@ export class ArchivedReposCheck extends BaseCheck {
   readonly description = 'Verify repository archival status and cleanup';
 
   shouldRun(context: CheckContext): boolean {
+    if (!super.shouldRun(context)) return false;
     const config = this.getRepoConfig(context, 'archived_repos');
     return config !== undefined;
   }

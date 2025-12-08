@@ -7,6 +7,7 @@ export class MergeMethodsCheck extends BaseCheck {
   readonly description = 'Verify repository merge methods configuration';
 
   shouldRun(context: CheckContext): boolean {
+    if (!super.shouldRun(context)) return false;
     const config = this.getRepoConfig(context, 'merge_methods');
     return config !== undefined;
   }
