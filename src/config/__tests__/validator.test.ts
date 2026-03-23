@@ -115,7 +115,10 @@ describe('Config validation', () => {
       expect(config.defaults.merge_methods?.allow_squash_merge).toBe(true);
       const bpBlocks = config.defaults.branch_protection;
       expect(Array.isArray(bpBlocks)).toBe(true);
-      expect((bpBlocks as Array<{ patterns: string[] }>)[0].patterns).toEqual(['main', 'release/v*']);
+      expect((bpBlocks as Array<{ patterns: string[] }>)[0].patterns).toEqual([
+        'main',
+        'release/v*',
+      ]);
       expect(config.rules).toHaveLength(2);
       expect(config.checks?.enabled).toContain('repo-merge-strategy');
       expect(config.cache?.enabled).toBe(true);

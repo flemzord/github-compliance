@@ -1,5 +1,5 @@
-import * as logger from '../logging';
 import type { BranchProtectionDefaults } from '../config/types';
+import * as logger from '../logging';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckDetails } from './types';
 
@@ -22,7 +22,9 @@ export class BranchProtectionCheck extends BaseCheck {
     if (!raw) return [];
 
     // Normalize to array (schema already does this, but handle both for safety)
-    let blocks: BranchProtectionDefaults[] = Array.isArray(raw) ? [...raw.map((b) => ({ ...b }))] : [{ ...raw }];
+    let blocks: BranchProtectionDefaults[] = Array.isArray(raw)
+      ? [...raw.map((b) => ({ ...b }))]
+      : [{ ...raw }];
 
     // Apply matching rules
     if (config.rules) {
@@ -38,14 +40,19 @@ export class BranchProtectionCheck extends BaseCheck {
           const rulePatterns = (ruleBlock as BranchProtectionDefaults).patterns;
           if (!rulePatterns || rulePatterns.length === 0) {
             // No patterns in rule block: apply override to ALL existing blocks
-            blocks = blocks.map((b) => this.deepMergeBlock(b, ruleBlock as Partial<BranchProtectionDefaults>));
+            blocks = blocks.map((b) =>
+              this.deepMergeBlock(b, ruleBlock as Partial<BranchProtectionDefaults>)
+            );
           } else {
             // Find matching block by pattern overlap
             const matchIdx = blocks.findIndex((b) =>
               b.patterns.some((p) => rulePatterns.includes(p))
             );
             if (matchIdx >= 0) {
-              blocks[matchIdx] = this.deepMergeBlock(blocks[matchIdx], ruleBlock as Partial<BranchProtectionDefaults>);
+              blocks[matchIdx] = this.deepMergeBlock(
+                blocks[matchIdx],
+                ruleBlock as Partial<BranchProtectionDefaults>
+              );
             } else {
               // New pattern block — append
               blocks.push(ruleBlock as BranchProtectionDefaults);
@@ -71,9 +78,19 @@ export class BranchProtectionCheck extends BaseCheck {
       if (val === undefined) continue;
 
       const baseVal = baseAny[key];
-      if (val !== null && typeof val === 'object' && !Array.isArray(val) && baseVal && typeof baseVal === 'object' && !Array.isArray(baseVal)) {
+      if (
+        val !== null &&
+        typeof val === 'object' &&
+        !Array.isArray(val) &&
+        baseVal &&
+        typeof baseVal === 'object' &&
+        !Array.isArray(baseVal)
+      ) {
         // Deep merge nested objects (required_reviews, required_status_checks, restrictions)
-        merged[key] = { ...(baseVal as Record<string, unknown>), ...(val as Record<string, unknown>) };
+        merged[key] = {
+          ...(baseVal as Record<string, unknown>),
+          ...(val as Record<string, unknown>),
+        };
       } else {
         merged[key] = val;
       }
@@ -146,7 +163,11 @@ export class BranchProtectionCheck extends BaseCheck {
             continue;
           }
 
-          const currentProtection = await context.client.getBranchProtection(owner, repo, branchName);
+          const currentProtection = await context.client.getBranchProtection(
+            owner,
+            repo,
+            branchName
+          );
           (details.branches as Record<string, unknown>)[branchName] = {
             current: currentProtection,
             expected: normalizedProtectionRules,
@@ -302,7 +323,9 @@ export class BranchProtectionCheck extends BaseCheck {
                 );
               }
             } else if (current && !expected) {
-              issues.push(`Branch '${branchName}' should not require pull request reviews but does`);
+              issues.push(
+                `Branch '${branchName}' should not require pull request reviews but does`
+              );
               if (details.actions_needed) {
                 details.actions_needed.push({
                   action: 'update_protection',
