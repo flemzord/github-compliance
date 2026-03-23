@@ -1,4 +1,5 @@
 import * as logger from '../logging';
+import type { BranchProtectionDefaults } from '../config/types';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
 import type { AppliedAction, CheckDetails } from './types';
 
@@ -8,275 +9,336 @@ export class BranchProtectionCheck extends BaseCheck {
 
   shouldRun(context: CheckContext): boolean {
     if (!super.shouldRun(context)) return false;
-    const config = this.getRepoConfig(context, 'branch_protection');
-    return config !== undefined;
+    const blocks = this.getResolvedBranchProtection(context);
+    return blocks.length > 0;
+  }
+
+  /**
+   * Resolve branch_protection blocks: defaults (array) + rules merged by pattern.
+   */
+  private getResolvedBranchProtection(context: CheckContext): BranchProtectionDefaults[] {
+    const { config, repository } = context;
+    const raw = config.defaults.branch_protection;
+    if (!raw) return [];
+
+    // Normalize to array (schema already does this, but handle both for safety)
+    let blocks: BranchProtectionDefaults[] = Array.isArray(raw) ? [...raw.map((b) => ({ ...b }))] : [{ ...raw }];
+
+    // Apply matching rules
+    if (config.rules) {
+      for (const rule of config.rules) {
+        if (!rule.apply?.branch_protection) continue;
+        if (!this.matchesRepositoryRule(repository, rule.match)) continue;
+
+        const ruleBlocks = Array.isArray(rule.apply.branch_protection)
+          ? rule.apply.branch_protection
+          : [rule.apply.branch_protection];
+
+        for (const ruleBlock of ruleBlocks) {
+          const rulePatterns = (ruleBlock as BranchProtectionDefaults).patterns;
+          if (!rulePatterns || rulePatterns.length === 0) {
+            // No patterns in rule block: apply override to ALL existing blocks
+            blocks = blocks.map((b) => this.deepMergeBlock(b, ruleBlock as Partial<BranchProtectionDefaults>));
+          } else {
+            // Find matching block by pattern overlap
+            const matchIdx = blocks.findIndex((b) =>
+              b.patterns.some((p) => rulePatterns.includes(p))
+            );
+            if (matchIdx >= 0) {
+              blocks[matchIdx] = this.deepMergeBlock(blocks[matchIdx], ruleBlock as Partial<BranchProtectionDefaults>);
+            } else {
+              // New pattern block — append
+              blocks.push(ruleBlock as BranchProtectionDefaults);
+            }
+          }
+        }
+      }
+    }
+
+    return blocks;
+  }
+
+  private deepMergeBlock(
+    base: BranchProtectionDefaults,
+    override: Partial<BranchProtectionDefaults>
+  ): BranchProtectionDefaults {
+    const baseAny = base as unknown as Record<string, unknown>;
+    const overrideAny = override as unknown as Record<string, unknown>;
+    const merged = { ...baseAny };
+
+    for (const key of Object.keys(overrideAny)) {
+      const val = overrideAny[key];
+      if (val === undefined) continue;
+
+      const baseVal = baseAny[key];
+      if (val !== null && typeof val === 'object' && !Array.isArray(val) && baseVal && typeof baseVal === 'object' && !Array.isArray(baseVal)) {
+        // Deep merge nested objects (required_reviews, required_status_checks, restrictions)
+        merged[key] = { ...(baseVal as Record<string, unknown>), ...(val as Record<string, unknown>) };
+      } else {
+        merged[key] = val;
+      }
+    }
+
+    return merged as unknown as BranchProtectionDefaults;
   }
 
   async check(context: CheckContext): Promise<CheckResult> {
     try {
       const { repository } = context;
       const { owner, repo } = this.getRepoInfo(repository);
-      const config = this.getRepoConfig(context, 'branch_protection');
+      const blocks = this.getResolvedBranchProtection(context);
 
-      if (!config) {
+      if (blocks.length === 0) {
         return this.createCompliantResult('No branch protection configuration specified');
       }
 
       const issues: string[] = [];
       const details: CheckDetails = {
         branches: {} as Record<string, unknown>,
-        expected: config,
+        expected: blocks,
         actions_needed: [],
       };
 
-      // Extract patterns and other protection rules
-      const { patterns, ...baseProtectionRules } = config as unknown as {
-        patterns?: string[];
-        [key: string]: unknown;
-      };
-
-      if (!patterns || patterns.length === 0) {
-        logger.warning('No branch patterns specified in branch protection configuration');
-        return this.createCompliantResult('No branch patterns to protect');
-      }
-
-      // For now, we'll check exact branch names (wildcards would need branch listing)
-      // In a production scenario, you'd want to list all branches and match against patterns
-      for (const branchPattern of patterns) {
-        // For simplicity, treat patterns as exact branch names for now
-        // TODO: Implement wildcard matching by listing branches
-        const branchName = branchPattern;
-
-        const normalizedProtectionRules = this.normalizeProtectionRules(baseProtectionRules);
-
-        const { configured: hasRequiredReviewsConfig, value: requiredReviewsConfig } =
-          this.getRequiredReviewsConfig(normalizedProtectionRules);
-
-        const enqueueStatusCheckUpdate = () => {
-          if (!details.actions_needed) return;
-          const alreadyQueued = details.actions_needed.some(
-            (action) =>
-              action.action === 'update_protection' &&
-              action.branch === branchName &&
-              action.field === 'required_status_checks'
-          );
-          if (!alreadyQueued) {
-            details.actions_needed.push({
-              action: 'update_protection',
-              branch: branchName,
-              field: 'required_status_checks',
-              expected: normalizedProtectionRules.required_status_checks,
-            });
-          }
+      for (const block of blocks) {
+        const { patterns, ...baseProtectionRules } = block as {
+          patterns: string[];
+          [key: string]: unknown;
         };
 
-        // First check if the branch exists by trying to get it
-        try {
-          await context.client.getBranch(owner, repo, branchName);
-        } catch (_branchError) {
-          logger.warning(
-            `Branch '${branchName}' does not exist in ${repository.full_name}, skipping protection check`
-          );
+        if (!patterns || patterns.length === 0) {
+          logger.warning('No branch patterns specified in branch protection configuration');
           continue;
         }
 
-        const currentProtection = await context.client.getBranchProtection(owner, repo, branchName);
-        (details.branches as Record<string, unknown>)[branchName] = {
-          current: currentProtection,
-          expected: normalizedProtectionRules,
-        };
+        for (const branchPattern of patterns) {
+          const branchName = branchPattern;
 
-        if (!currentProtection) {
-          if (Object.keys(baseProtectionRules).length > 0) {
-            issues.push(`Branch '${branchName}' should have protection rules but has none`);
-            if (details.actions_needed) {
-              details.actions_needed.push({
-                action: 'enable_protection',
-                branch: branchName,
-                rules: normalizedProtectionRules,
-              });
-            }
-          }
-          continue;
-        }
+          const normalizedProtectionRules = this.normalizeProtectionRules(baseProtectionRules);
 
-        // Check required status checks
-        if (baseProtectionRules.required_status_checks !== undefined) {
-          const current = currentProtection.required_status_checks;
-          const expected = baseProtectionRules.required_status_checks as {
-            strict?: boolean;
-            contexts?: string[];
-          } | null;
+          const { configured: hasRequiredReviewsConfig, value: requiredReviewsConfig } =
+            this.getRequiredReviewsConfig(normalizedProtectionRules);
 
-          if (!current && expected) {
-            issues.push(`Branch '${branchName}' should require status checks`);
-            if (details.actions_needed) {
+          const enqueueStatusCheckUpdate = () => {
+            if (!details.actions_needed) return;
+            const alreadyQueued = details.actions_needed.some(
+              (action) =>
+                action.action === 'update_protection' &&
+                action.branch === branchName &&
+                action.field === 'required_status_checks'
+            );
+            if (!alreadyQueued) {
               details.actions_needed.push({
                 action: 'update_protection',
                 branch: branchName,
                 field: 'required_status_checks',
-                expected: expected,
+                expected: normalizedProtectionRules.required_status_checks,
               });
             }
-          } else if (current && expected) {
-            // Check strict mode
-            if (expected.strict !== undefined && current.strict !== expected.strict) {
-              issues.push(
-                `Branch '${branchName}' strict status checks should be ${expected.strict ? 'enabled' : 'disabled'} ` +
-                  `but is ${current.strict ? 'enabled' : 'disabled'}`
-              );
-              enqueueStatusCheckUpdate();
-            }
+          };
 
-            // Check required contexts
-            if (expected.contexts) {
-              const missingContexts = expected.contexts.filter(
-                (ctx: string) => !current.contexts?.includes(ctx)
-              );
-              if (missingContexts.length > 0) {
+          // First check if the branch exists by trying to get it
+          try {
+            await context.client.getBranch(owner, repo, branchName);
+          } catch (_branchError) {
+            logger.warning(
+              `Branch '${branchName}' does not exist in ${repository.full_name}, skipping protection check`
+            );
+            continue;
+          }
+
+          const currentProtection = await context.client.getBranchProtection(owner, repo, branchName);
+          (details.branches as Record<string, unknown>)[branchName] = {
+            current: currentProtection,
+            expected: normalizedProtectionRules,
+          };
+
+          if (!currentProtection) {
+            if (Object.keys(baseProtectionRules).length > 0) {
+              issues.push(`Branch '${branchName}' should have protection rules but has none`);
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'enable_protection',
+                  branch: branchName,
+                  rules: normalizedProtectionRules,
+                });
+              }
+            }
+            continue;
+          }
+
+          // Check required status checks
+          if (baseProtectionRules.required_status_checks !== undefined) {
+            const current = currentProtection.required_status_checks;
+            const expected = baseProtectionRules.required_status_checks as {
+              strict?: boolean;
+              contexts?: string[];
+            } | null;
+
+            if (!current && expected) {
+              issues.push(`Branch '${branchName}' should require status checks`);
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_protection',
+                  branch: branchName,
+                  field: 'required_status_checks',
+                  expected: expected,
+                });
+              }
+            } else if (current && expected) {
+              if (expected.strict !== undefined && current.strict !== expected.strict) {
                 issues.push(
-                  `Branch '${branchName}' missing required status check contexts: ${missingContexts.join(', ')}`
+                  `Branch '${branchName}' strict status checks should be ${expected.strict ? 'enabled' : 'disabled'} ` +
+                    `but is ${current.strict ? 'enabled' : 'disabled'}`
                 );
                 enqueueStatusCheckUpdate();
               }
 
-              const unexpectedContexts = (current.contexts || []).filter(
-                (ctx: string) => !expected.contexts?.includes(ctx)
-              );
-              if (unexpectedContexts.length > 0) {
-                issues.push(
-                  `Branch '${branchName}' has unexpected status check contexts: ${unexpectedContexts.join(', ')}`
+              if (expected.contexts) {
+                const missingContexts = expected.contexts.filter(
+                  (ctx: string) => !current.contexts?.includes(ctx)
                 );
-                enqueueStatusCheckUpdate();
+                if (missingContexts.length > 0) {
+                  issues.push(
+                    `Branch '${branchName}' missing required status check contexts: ${missingContexts.join(', ')}`
+                  );
+                  enqueueStatusCheckUpdate();
+                }
+
+                const unexpectedContexts = (current.contexts || []).filter(
+                  (ctx: string) => !expected.contexts?.includes(ctx)
+                );
+                if (unexpectedContexts.length > 0) {
+                  issues.push(
+                    `Branch '${branchName}' has unexpected status check contexts: ${unexpectedContexts.join(', ')}`
+                  );
+                  enqueueStatusCheckUpdate();
+                }
+              }
+            } else if (current && !expected) {
+              issues.push(`Branch '${branchName}' should not require status checks but does`);
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_protection',
+                  branch: branchName,
+                  field: 'required_status_checks',
+                  expected: null,
+                });
               }
             }
-          } else if (current && !expected) {
-            issues.push(`Branch '${branchName}' should not require status checks but does`);
+          }
+
+          // Check enforce admins
+          if (
+            baseProtectionRules.enforce_admins !== undefined &&
+            (currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)
+              ?.enabled !== baseProtectionRules.enforce_admins
+          ) {
+            issues.push(
+              `Branch '${branchName}' admin enforcement should be ${baseProtectionRules.enforce_admins ? 'enabled' : 'disabled'} ` +
+                `but is ${(currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)?.enabled ? 'enabled' : 'disabled'}`
+            );
             if (details.actions_needed) {
               details.actions_needed.push({
                 action: 'update_protection',
                 branch: branchName,
-                field: 'required_status_checks',
-                expected: null,
+                field: 'enforce_admins',
+                expected: baseProtectionRules.enforce_admins,
               });
             }
           }
-        }
 
-        // Check enforce admins
-        if (
-          baseProtectionRules.enforce_admins !== undefined &&
-          (currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)
-            ?.enabled !== baseProtectionRules.enforce_admins
-        ) {
-          issues.push(
-            `Branch '${branchName}' admin enforcement should be ${baseProtectionRules.enforce_admins ? 'enabled' : 'disabled'} ` +
-              `but is ${(currentProtection.enforce_admins as unknown as { enabled?: boolean } | undefined)?.enabled ? 'enabled' : 'disabled'}`
-          );
-          if (details.actions_needed) {
-            details.actions_needed.push({
-              action: 'update_protection',
-              branch: branchName,
-              field: 'enforce_admins',
-              expected: baseProtectionRules.enforce_admins,
-            });
-          }
-        }
+          // Check required pull request reviews
+          if (hasRequiredReviewsConfig) {
+            const current = currentProtection.required_pull_request_reviews;
+            const expected = requiredReviewsConfig as {
+              required_approving_review_count?: number;
+              dismiss_stale_reviews?: boolean;
+              require_code_owner_reviews?: boolean;
+            } | null;
+            const normalizedExpected = normalizedProtectionRules.required_pull_request_reviews as {
+              required_approving_review_count?: number;
+              dismiss_stale_reviews?: boolean;
+              require_code_owner_reviews?: boolean;
+            } | null;
 
-        // Check required pull request reviews
-        if (hasRequiredReviewsConfig) {
-          const current = currentProtection.required_pull_request_reviews;
-          const expected = requiredReviewsConfig as {
-            required_approving_review_count?: number;
-            dismiss_stale_reviews?: boolean;
-            require_code_owner_reviews?: boolean;
-          } | null;
-          const normalizedExpected = normalizedProtectionRules.required_pull_request_reviews as {
-            required_approving_review_count?: number;
-            dismiss_stale_reviews?: boolean;
-            require_code_owner_reviews?: boolean;
-          } | null;
+            if (!current && expected) {
+              issues.push(`Branch '${branchName}' should require pull request reviews`);
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_protection',
+                  branch: branchName,
+                  field: 'required_pull_request_reviews',
+                  expected: normalizedExpected,
+                });
+              }
+            } else if (current && expected) {
+              if (
+                expected.required_approving_review_count !== undefined &&
+                current.required_approving_review_count !== expected.required_approving_review_count
+              ) {
+                issues.push(
+                  `Branch '${branchName}' should require ${expected.required_approving_review_count} approving reviews ` +
+                    `but requires ${current.required_approving_review_count}`
+                );
+              }
 
-          if (!current && expected) {
-            issues.push(`Branch '${branchName}' should require pull request reviews`);
-            if (details.actions_needed) {
-              details.actions_needed.push({
-                action: 'update_protection',
-                branch: branchName,
-                field: 'required_pull_request_reviews',
-                expected: normalizedExpected,
-              });
-            }
-          } else if (current && expected) {
-            // Check required reviewers count
-            if (
-              expected.required_approving_review_count !== undefined &&
-              current.required_approving_review_count !== expected.required_approving_review_count
-            ) {
-              issues.push(
-                `Branch '${branchName}' should require ${expected.required_approving_review_count} approving reviews ` +
-                  `but requires ${current.required_approving_review_count}`
-              );
-            }
+              if (
+                expected.dismiss_stale_reviews !== undefined &&
+                current.dismiss_stale_reviews !== expected.dismiss_stale_reviews
+              ) {
+                issues.push(
+                  `Branch '${branchName}' dismiss stale reviews should be ${expected.dismiss_stale_reviews ? 'enabled' : 'disabled'} ` +
+                    `but is ${current.dismiss_stale_reviews ? 'enabled' : 'disabled'}`
+                );
+              }
 
-            // Check dismiss stale reviews
-            if (
-              expected.dismiss_stale_reviews !== undefined &&
-              current.dismiss_stale_reviews !== expected.dismiss_stale_reviews
-            ) {
-              issues.push(
-                `Branch '${branchName}' dismiss stale reviews should be ${expected.dismiss_stale_reviews ? 'enabled' : 'disabled'} ` +
-                  `but is ${current.dismiss_stale_reviews ? 'enabled' : 'disabled'}`
-              );
-            }
-
-            // Check require code owner reviews
-            if (
-              expected.require_code_owner_reviews !== undefined &&
-              current.require_code_owner_reviews !== expected.require_code_owner_reviews
-            ) {
-              issues.push(
-                `Branch '${branchName}' code owner reviews should be ${expected.require_code_owner_reviews ? 'required' : 'not required'} ` +
-                  `but is ${current.require_code_owner_reviews ? 'required' : 'not required'}`
-              );
-            }
-          } else if (current && !expected) {
-            issues.push(`Branch '${branchName}' should not require pull request reviews but does`);
-            if (details.actions_needed) {
-              details.actions_needed.push({
-                action: 'update_protection',
-                branch: branchName,
-                field: 'required_pull_request_reviews',
-                expected: null,
-              });
+              if (
+                expected.require_code_owner_reviews !== undefined &&
+                current.require_code_owner_reviews !== expected.require_code_owner_reviews
+              ) {
+                issues.push(
+                  `Branch '${branchName}' code owner reviews should be ${expected.require_code_owner_reviews ? 'required' : 'not required'} ` +
+                    `but is ${current.require_code_owner_reviews ? 'required' : 'not required'}`
+                );
+              }
+            } else if (current && !expected) {
+              issues.push(`Branch '${branchName}' should not require pull request reviews but does`);
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_protection',
+                  branch: branchName,
+                  field: 'required_pull_request_reviews',
+                  expected: null,
+                });
+              }
             }
           }
-        }
 
-        // Check restrictions
-        if (baseProtectionRules.restrictions !== undefined) {
-          const current = currentProtection.restrictions;
-          const expected = baseProtectionRules.restrictions;
+          // Check restrictions
+          if (baseProtectionRules.restrictions !== undefined) {
+            const current = currentProtection.restrictions;
+            const expected = baseProtectionRules.restrictions;
 
-          if (!current && expected) {
-            issues.push(`Branch '${branchName}' should have push restrictions`);
-            if (details.actions_needed) {
-              details.actions_needed.push({
-                action: 'update_protection',
-                branch: branchName,
-                field: 'restrictions',
-                expected: expected,
-              });
-            }
-          } else if (current && !expected) {
-            issues.push(`Branch '${branchName}' should not have push restrictions but does`);
-            if (details.actions_needed) {
-              details.actions_needed.push({
-                action: 'update_protection',
-                branch: branchName,
-                field: 'restrictions',
-                expected: null,
-              });
+            if (!current && expected) {
+              issues.push(`Branch '${branchName}' should have push restrictions`);
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_protection',
+                  branch: branchName,
+                  field: 'restrictions',
+                  expected: expected,
+                });
+              }
+            } else if (current && !expected) {
+              issues.push(`Branch '${branchName}' should not have push restrictions but does`);
+              if (details.actions_needed) {
+                details.actions_needed.push({
+                  action: 'update_protection',
+                  branch: branchName,
+                  field: 'restrictions',
+                  expected: null,
+                });
+              }
             }
           }
         }
@@ -310,9 +372,9 @@ export class BranchProtectionCheck extends BaseCheck {
     try {
       const { repository } = context;
       const { owner, repo } = this.getRepoInfo(repository);
-      const config = this.getRepoConfig(context, 'branch_protection');
+      const blocks = this.getResolvedBranchProtection(context);
 
-      if (!config) {
+      if (blocks.length === 0) {
         return this.createCompliantResult('No branch protection configuration to apply');
       }
 
@@ -330,46 +392,40 @@ export class BranchProtectionCheck extends BaseCheck {
         return this.createCompliantResult('No actions needed to apply');
       }
 
+      // Build a lookup: branch → block rules (for fix context)
+      const branchToBlock = new Map<string, Record<string, unknown>>();
+      for (const block of blocks) {
+        const { patterns, ...rules } = block as { patterns: string[]; [key: string]: unknown };
+        const normalized = this.normalizeProtectionRules(rules);
+        for (const p of patterns) {
+          branchToBlock.set(p, normalized);
+        }
+      }
+
       // Apply each needed action
       for (const action of actions_needed) {
         try {
-          // Debug logging
           logger.debug(`Processing action: ${JSON.stringify(action)}`);
 
           switch (action.action) {
             case 'enable_protection':
             case 'update_protection': {
               const branchName = action.branch as string;
-
-              // For update_protection with specific field, we need to build the full rules
               let rulesToApply: Record<string, unknown>;
 
               if (action.action === 'enable_protection' && action.rules) {
-                // For enable_protection, use the provided rules
                 rulesToApply = action.rules as Record<string, unknown>;
               } else if (action.action === 'update_protection' && action.field) {
-                // For update_protection with a specific field, extract the protection rules
-                // (excluding patterns) and update only the specific field
-                const { patterns: _patterns, ...baseProtectionRules } = config as unknown as {
-                  patterns?: string[];
-                  [key: string]: unknown;
-                };
-                rulesToApply = { ...baseProtectionRules };
-
-                // Update the specific field
+                const blockRules = branchToBlock.get(branchName) || {};
+                rulesToApply = { ...blockRules };
                 if (action.expected !== undefined) {
                   rulesToApply[action.field as string] = action.expected;
                 }
               } else {
-                // Fallback - use provided rules or extract protection rules from config
                 if (action.rules) {
                   rulesToApply = action.rules as Record<string, unknown>;
                 } else {
-                  const { patterns: _patterns2, ...baseProtectionRules } = config as unknown as {
-                    patterns?: string[];
-                    [key: string]: unknown;
-                  };
-                  rulesToApply = baseProtectionRules;
+                  rulesToApply = branchToBlock.get(branchName) || {};
                 }
               }
 

@@ -191,19 +191,24 @@ export function validateDefaults(config: ComplianceConfig): string[] {
 
   // Vérification de cohérence pour branch protection
   if (config.defaults.branch_protection) {
-    const bp = config.defaults.branch_protection;
-    if (bp.patterns.length === 0) {
-      warnings.push('Branch protection is configured but no patterns are specified');
-    }
+    const blocks = Array.isArray(config.defaults.branch_protection)
+      ? config.defaults.branch_protection
+      : [config.defaults.branch_protection];
 
-    if (
-      bp.required_reviews &&
-      bp.required_reviews.required_approving_review_count === 0 &&
-      !bp.required_reviews.require_code_owner_reviews
-    ) {
-      warnings.push(
-        'Branch protection requires no reviews and no code owner reviews - consider requiring at least one'
-      );
+    for (const bp of blocks) {
+      if (bp.patterns.length === 0) {
+        warnings.push('Branch protection is configured but no patterns are specified');
+      }
+
+      if (
+        bp.required_reviews &&
+        bp.required_reviews.required_approving_review_count === 0 &&
+        !bp.required_reviews.require_code_owner_reviews
+      ) {
+        warnings.push(
+          'Branch protection requires no reviews and no code owner reviews - consider requiring at least one'
+        );
+      }
     }
   }
 

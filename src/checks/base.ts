@@ -200,6 +200,14 @@ export abstract class BaseCheck implements ComplianceCheck {
       if (!match.only_private && repository.private) return false;
     }
 
+    // Check language requirement (case-insensitive)
+    if (match.languages && match.languages.length > 0) {
+      if (!repository.language) return false;
+      const repoLang = repository.language.toLowerCase();
+      const matches = match.languages.some((lang) => lang.toLowerCase() === repoLang);
+      if (!matches) return false;
+    }
+
     return true;
   }
 }

@@ -31,7 +31,14 @@ const jsonSchema = {
           $ref: "#/definitions/merge_methods",
         },
         branch_protection: {
-          $ref: "#/definitions/branch_protection_defaults",
+          oneOf: [
+            { $ref: "#/definitions/branch_protection_defaults" },
+            {
+              type: "array",
+              description: "Array of branch protection blocks with different settings per pattern",
+              items: { $ref: "#/definitions/branch_protection_defaults" },
+            },
+          ],
         },
         security: {
           $ref: "#/definitions/security",
@@ -72,6 +79,14 @@ const jsonSchema = {
                 type: "boolean",
                 description: "Apply only to private repositories",
               },
+              languages: {
+                type: "array",
+                description:
+                  "Match repositories by primary language (case-insensitive, e.g. ['Go', 'TypeScript'])",
+                items: {
+                  type: "string",
+                },
+              },
             },
             additionalProperties: false,
           },
@@ -83,7 +98,13 @@ const jsonSchema = {
                 $ref: "#/definitions/merge_methods_partial",
               },
               branch_protection: {
-                $ref: "#/definitions/branch_protection_partial",
+                oneOf: [
+                  { $ref: "#/definitions/branch_protection_partial" },
+                  {
+                    type: "array",
+                    items: { $ref: "#/definitions/branch_protection_partial" },
+                  },
+                ],
               },
               security: {
                 $ref: "#/definitions/security_partial",

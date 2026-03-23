@@ -298,10 +298,14 @@ const RepositorySettingsSchema = z
   })
   .strict();
 
+const BranchProtectionDefaultsInputSchema = z
+  .union([BranchProtectionDefaultsSchema, z.array(BranchProtectionDefaultsSchema)])
+  .transform((val) => (Array.isArray(val) ? val : [val]));
+
 const DefaultsSchema = z
   .object({
     merge_methods: MergeMethodsSchema,
-    branch_protection: BranchProtectionDefaultsSchema,
+    branch_protection: BranchProtectionDefaultsInputSchema,
     security: SecuritySchema,
     permissions: PermissionsSchema,
     archived_repos: ArchivedReposSchema,
@@ -312,14 +316,19 @@ const DefaultsSchema = z
 const MatchCriteriaSchema = z.object({
   repositories: z.array(z.string()).optional(),
   only_private: z.boolean().optional(),
+  languages: z.array(z.string()).optional(),
 });
+
+const PartialBranchProtectionInputSchema = z
+  .union([PartialBranchProtectionSchema, z.array(PartialBranchProtectionSchema)])
+  .transform((val) => (Array.isArray(val) ? val : [val]));
 
 const RuleSchema = z.object({
   match: MatchCriteriaSchema,
   apply: z
     .object({
       merge_methods: MergeMethodsSchema.partial(),
-      branch_protection: PartialBranchProtectionSchema,
+      branch_protection: PartialBranchProtectionInputSchema,
       security: SecuritySchema.partial(),
       permissions: PermissionsSchema.partial(),
       archived_repos: ArchivedReposSchema.partial(),

@@ -193,7 +193,7 @@ export interface RepositorySettingsConfig {
 
 export interface Defaults {
   merge_methods?: MergeMethods;
-  branch_protection?: BranchProtectionDefaults;
+  branch_protection?: BranchProtectionDefaults | BranchProtectionDefaults[];
   security?: Security;
   permissions?: Permissions;
   archived_repos?: ArchivedRepos;
@@ -203,6 +203,7 @@ export interface Defaults {
 export interface MatchCriteria {
   repositories?: string[];
   only_private?: boolean;
+  languages?: string[];
 }
 
 export interface Rule {
