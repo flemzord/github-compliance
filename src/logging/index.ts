@@ -152,6 +152,6 @@ export async function group(title: string, fn: () => Promise<void>): Promise<voi
   }
 }
 
-export { ConsoleLogger };
 export { ProgressLogger } from './progress-logger';
 export type { CheckSummary, LoggerOptions, OutputMode, ProgressUpdate } from './types';
+export { ConsoleLogger };

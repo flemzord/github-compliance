@@ -1,7 +1,5 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/cli.ts"],
-  "ignore": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.spec.ts"],
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "includeEntryExports": false,
   "ignoreExportsUsedInFile": true
 }
