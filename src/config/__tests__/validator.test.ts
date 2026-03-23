@@ -637,4 +637,120 @@ defaults:
       expect(warnings).toHaveLength(0);
     });
   });
+
+  describe('multi-pattern branch_protection', () => {
+    it('should accept array format for branch_protection in defaults', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults:
+  branch_protection:
+    - patterns: ["main"]
+      enforce_admins: true
+    - patterns: ["release/*"]
+      enforce_admins: false
+`);
+
+      expect(Array.isArray(config.defaults.branch_protection)).toBe(true);
+      const blocks = config.defaults.branch_protection as Array<{
+        patterns: string[];
+        enforce_admins?: boolean;
+      }>;
+      expect(blocks).toHaveLength(2);
+      expect(blocks[0].patterns).toEqual(['main']);
+      expect(blocks[0].enforce_admins).toBe(true);
+      expect(blocks[1].patterns).toEqual(['release/*']);
+      expect(blocks[1].enforce_admins).toBe(false);
+    });
+
+    it('should normalize single object to array', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults:
+  branch_protection:
+    patterns: ["main"]
+    enforce_admins: true
+`);
+
+      expect(Array.isArray(config.defaults.branch_protection)).toBe(true);
+      const blocks = config.defaults.branch_protection as Array<{
+        patterns: string[];
+      }>;
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].patterns).toEqual(['main']);
+    });
+
+    it('should accept array format for branch_protection in rules', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults: {}
+rules:
+  - match:
+      repositories: ["my-repo"]
+    apply:
+      branch_protection:
+        - patterns: ["main"]
+          enforce_admins: true
+        - patterns: ["develop"]
+          enforce_admins: false
+`);
+
+      expect(config.rules).toHaveLength(1);
+      const bp = config.rules![0].apply!.branch_protection;
+      expect(Array.isArray(bp)).toBe(true);
+      expect(bp).toHaveLength(2);
+    });
+
+    it('should normalize single object to array in rules', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults: {}
+rules:
+  - match:
+      repositories: ["my-repo"]
+    apply:
+      branch_protection:
+        patterns: ["main"]
+        enforce_admins: true
+`);
+
+      const bp = config.rules![0].apply!.branch_protection;
+      expect(Array.isArray(bp)).toBe(true);
+      expect(bp).toHaveLength(1);
+    });
+
+    it('should handle non-array branch_protection in validateDefaults', () => {
+      // validateDefaults handles both array and non-array for safety
+      // Force a non-array value to test the defensive branch
+      const config = {
+        version: 1 as const,
+        defaults: {
+          branch_protection: {
+            patterns: ['main'],
+            enforce_admins: true,
+          } as unknown as Array<{ patterns: string[] }>,
+        },
+      };
+      const warnings = validateDefaults(config);
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('should accept languages in match criteria', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults: {}
+rules:
+  - match:
+      languages: ["Go", "TypeScript"]
+    apply:
+      branch_protection:
+        - patterns: ["main"]
+          required_status_checks:
+            contexts: ["Dirty", "Tests"]
+            strict: true
+            auto_discover: false
+`);
+
+      expect(config.rules![0].match.languages).toEqual(['Go', 'TypeScript']);
+    });
+  });
 });
