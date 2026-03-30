@@ -58,7 +58,7 @@
     "knip": "^6.0.3",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.2"
+    "typescript": "^6.0.2"
   },
   "bin": {
     "github-compliance-cli": "dist/cli.js"
