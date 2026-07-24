@@ -13,6 +13,8 @@ export interface ResolvedTeam {
   members: TeamMember[];
   source: TeamSource;
   rule?: DynamicTeamRule;
+  membershipAuthoritative?: boolean;
+  preserveMaintainers?: boolean;
 }
 
 export interface ResolvedTeams {
@@ -52,6 +54,8 @@ export interface TeamDiff {
   definition: TeamDefinition;
   targetMembers: TeamMember[];
   manageMembers: boolean;
+  membershipAuthoritative: boolean;
+  preserveMaintainers: boolean;
   targetParentId?: number | null;
   changes: TeamDiffChangeSet;
 }
@@ -79,6 +83,13 @@ export interface SyncResult {
   findings: SyncFinding[];
   summary: string;
   stats: SyncStats;
+  actions: TeamSyncAction[];
+}
+
+export interface TeamSyncAction {
+  operation: 'create_team' | 'update_team' | 'remove_team';
+  team: string;
+  details?: Record<string, unknown>;
 }
 
 export interface TeamSyncOptions {

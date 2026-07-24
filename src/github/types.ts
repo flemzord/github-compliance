@@ -73,7 +73,8 @@ export interface TeamPermission {
   id: number;
   name: string;
   slug: string;
-  permission: 'read' | 'triage' | 'write' | 'maintain' | 'admin';
+  permission: 'pull' | 'read' | 'triage' | 'push' | 'write' | 'maintain' | 'admin';
+  access_source?: 'organization' | 'repository' | string;
 }
 
 export interface GitHubTeamSummary {
@@ -97,6 +98,27 @@ export interface GitHubTeamMember {
 
 export interface OrganizationMember {
   login: string;
+  type?: string;
+  suspended_at?: string | null;
+}
+
+export interface RepositoryRuleset {
+  id: number;
+  name: string;
+  target?: 'branch' | 'tag' | 'push' | 'repository';
+  source_type?: 'Repository' | 'Organization' | 'Enterprise';
+  source: string;
+  enforcement: 'disabled' | 'active' | 'evaluate';
+  conditions?: Record<string, unknown> | null;
+  rules?: Array<Record<string, unknown>>;
+}
+
+export interface RepositoryBranchRule {
+  type: string;
+  ruleset_source_type?: 'Repository' | 'Organization';
+  ruleset_source?: string;
+  ruleset_id?: number;
+  [key: string]: unknown;
 }
 
 export interface Collaborator {

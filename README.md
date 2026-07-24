@@ -51,6 +51,7 @@ github-compliance-cli run --config <path> --token <token> [options]
 | `--token`, `-t` | GitHub personal access token (required unless `GITHUB_TOKEN` is set) |
 | `--org` | GitHub organization name (falls back to `organization` value in config) |
 | `--dry-run`, `-d` | Report issues without applying changes |
+| `--fail-on-changes` | With `--dry-run`, exit with code 2 when changes are proposed |
 | `--repos` | Comma-separated list of repository names to check |
 | `--checks` | Comma-separated list of checks to run |
 | `--include-archived` | Include archived repositories in the run |
@@ -81,6 +82,10 @@ github-compliance-cli validate --config compliance.yml
 # Dry-run across the entire organization
 github-compliance-cli run --config .github/compliance.yml --token $GITHUB_TOKEN --dry-run
 
+# CI audit: distinguish proposed changes from execution errors
+github-compliance-cli run --config .github/compliance.yml --token $GITHUB_TOKEN \
+  --dry-run --fail-on-changes
+
 # Audit only selected repositories
 github-compliance-cli run -c compliance.yml -t ghp_xxx --repos "frontend,backend"
 
@@ -99,13 +104,14 @@ The CLI can perform the following compliance checks:
 
 | Check ID | Description |
 |----------|-------------|
-| `org-team-sync` | Synchronizes organization teams against the desired configuration |
+| `org-team-sync` | Synchronizes organization teams once per CLI run |
 | `repo-merge-strategy` | Validates allowed merge strategies (merge commit, squash, rebase) |
 | `repo-branch-protection` | Ensures branch protection rules are properly configured |
 | `repo-access-teams` | Manages repository team access and individual collaborators |
 | `repo-security-controls` | Verifies security features (secret scanning, Dependabot, code scanning) |
 | `repo-archival-policy` | Controls access to archived repositories |
 | `repo-settings` | Enforces repository feature toggles, visibility, and collaboration templates |
+| `repo-rulesets-observe` | Observes applicable rulesets and reports overlaps with legacy branch protections |
 
 Legacy identifiers (merge-methods, team-permissions, branch-protection, security-scanning, archived-repos, team-sync, repository-settings) are still accepted and automatically mapped to the new names.
 
@@ -183,6 +189,7 @@ defaults:
 
   permissions:
     remove_individual_collaborators: true
+    manage_teams: true
     teams:
       - team: "admins"
         permission: "admin"
@@ -214,7 +221,30 @@ rules:
         teams:
           - team: "docs-team"
             permission: "maintain"
+
+teams:
+  dynamic_rules:
+    - name: "all"
+      type: all_org_members
+      membership_authoritative: false
+      preserve_maintainers: true
+      include_bots: false
+
+# Observe GitHub rulesets without changing them
+rulesets:
+  mode: observe
 ```
+
+Repository team access and individual collaborators are independent. Set
+`remove_individual_collaborators: true` without `teams` to manage only direct users. Team
+permissions are managed when `manage_teams: true`, or for backward compatibility when a non-empty
+`teams` list is provided without `manage_teams`. An omitted `teams` field or `teams: []` without the
+explicit opt-in does not remove team access. With `manage_teams: true`, `teams` is required and an
+empty list explicitly removes all direct repository team permissions.
+
+Team permissions inherited from Organization Roles (`access_source: organization`) are always
+ignored. Only direct repository grants (`access_source: repository`, or responses without the field
+for backward compatibility) are managed.
 
 ## Reports
 
@@ -224,6 +254,16 @@ Two output formats are available:
 - **JSON** – Structured data for dashboards or additional automation
 
 By default the CLI writes `compliance-report.md` (or `.json` when `--format json` is used). Supply `--output` to override the file name.
+
+Reports separate configuration validity, execution success, and organization compliance. They also
+include organization-scoped checks and an action summary grouped by category with `proposed`,
+`applied`, and `ignored` counts. In particular, inherited Organization Role permissions appear as
+ignored actions rather than removals.
+
+For CI, combine `--dry-run` with `--fail-on-changes`. In this strict mode, exit code `0` means the run
+succeeded with no proposed changes, `2` means the run succeeded but proposed changes, and `1` means
+configuration, execution, or GitHub API failure. Without `--fail-on-changes`, a successful dry-run
+returns `0` even when it reports proposed changes.
 
 ## Development
 

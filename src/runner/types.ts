@@ -1,4 +1,5 @@
 import type { CheckResult } from '../checks/base';
+import type { ActionCategory, ComplianceAction } from '../checks/types';
 import type { Repository } from '../github/types';
 
 export interface RunnerOptions {
@@ -22,6 +23,28 @@ export interface CheckExecution {
   error?: string;
 }
 
+export interface OrganizationCheckExecution {
+  checkName: string;
+  organization: string;
+  result: CheckResult;
+  duration: number;
+  error?: string;
+}
+
+export interface ActionSummaryEntry {
+  proposed: number;
+  applied: number;
+  ignored: number;
+}
+
+export type ActionSummary = Record<ActionCategory, ActionSummaryEntry>;
+
+export interface RunnerStatus {
+  configuration: 'valid';
+  execution: 'success' | 'error';
+  compliance: 'compliant' | 'non_compliant' | 'unknown';
+}
+
 export interface RunnerReport {
   /** Total repositories processed */
   totalRepositories: number;
@@ -35,6 +58,14 @@ export interface RunnerReport {
   errorRepositories: number;
   /** Detailed results per repository */
   repositories: RepositoryReport[];
+  /** Organization-scoped checks, executed once per run */
+  organizationChecks: OrganizationCheckExecution[];
+  /** Machine-readable status dimensions */
+  status: RunnerStatus;
+  /** Normalized actions emitted by all checks */
+  actions: ComplianceAction[];
+  /** Action totals grouped by category and disposition */
+  actionSummary: ActionSummary;
   /** Overall compliance percentage */
   compliancePercentage: number;
   /** Execution time in milliseconds */

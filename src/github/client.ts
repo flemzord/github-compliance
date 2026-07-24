@@ -12,6 +12,8 @@ import type {
   GitHubTeamSummary,
   OrganizationMember,
   Repository,
+  RepositoryBranchRule,
+  RepositoryRuleset,
   RepositorySettings,
   SecuritySettings,
   TeamPermission,
@@ -249,6 +251,94 @@ export class GitHubClient {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(`Failed to get branch ${owner}/${repo}/${branch}: ${message}`);
+      }
+    });
+  }
+
+  async listBranches(owner: string, repo: string): Promise<Array<{ name: string }>> {
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'branches',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: 'all',
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const branches: Array<{ name: string }> = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.listBranches, {
+          owner,
+          repo,
+          per_page: 100,
+        });
+        for await (const { data } of iterator) {
+          branches.push(...data.map((branch) => ({ name: branch.name })));
+        }
+        return branches;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to list branches for ${owner}/${repo}: ${message}`);
+      }
+    });
+  }
+
+  async listRepositoryRulesets(owner: string, repo: string): Promise<RepositoryRuleset[]> {
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'rulesets',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: 'branch-with-parents',
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const rulesets: RepositoryRuleset[] = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.getRepoRulesets, {
+          owner,
+          repo,
+          includes_parents: true,
+          targets: 'branch',
+          per_page: 100,
+        });
+        for await (const { data } of iterator) {
+          rulesets.push(...(data as unknown as RepositoryRuleset[]));
+        }
+        return rulesets;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to list rulesets for ${owner}/${repo}: ${message}`);
+      }
+    });
+  }
+
+  async getBranchRules(
+    owner: string,
+    repo: string,
+    branch: string
+  ): Promise<RepositoryBranchRule[]> {
+    const descriptor: CacheKeyDescriptor = {
+      namespace: 'branchRules',
+      owner: this.getCacheOwner(owner),
+      repo,
+      identifier: branch,
+    };
+
+    return this.fetchWithCache(descriptor, async () => {
+      try {
+        const rules: RepositoryBranchRule[] = [];
+        const iterator = this.octokit.paginate.iterator(this.octokit.rest.repos.getBranchRules, {
+          owner,
+          repo,
+          branch,
+          per_page: 100,
+        });
+        for await (const { data } of iterator) {
+          rules.push(...(data as unknown as RepositoryBranchRule[]));
+        }
+        return rules;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to get active rules for ${owner}/${repo}/${branch}: ${message}`);
       }
     });
   }

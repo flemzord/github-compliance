@@ -599,6 +599,47 @@ defaults:
       );
     });
 
+    it('should warn when explicit team management has no admin team', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults:
+  permissions:
+    manage_teams: true
+    teams: []
+`);
+
+      const warnings = validateDefaults(config);
+      expect(warnings).toContain(
+        'manage_teams is true with no admin team; all direct team permissions may be removed'
+      );
+    });
+
+    it('should warn that an implicit empty team list is inert', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults:
+  permissions:
+    teams: []
+`);
+
+      const warnings = validateDefaults(config);
+      expect(warnings).toContain(
+        'teams: [] is inert unless manage_teams is explicitly set to true'
+      );
+    });
+
+    it('should not warn when team management is explicitly disabled', async () => {
+      const config = await validateFromString(`
+version: 1
+defaults:
+  permissions:
+    manage_teams: false
+    teams: []
+`);
+
+      expect(validateDefaults(config)).toHaveLength(0);
+    });
+
     it('should warn when branch protection requires no reviews', async () => {
       const config = await validateFromString(`
 version: 1

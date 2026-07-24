@@ -14,8 +14,11 @@ This document provides a comprehensive reference for all configuration options a
   - [Permissions](#permissions)
   - [Archived Repositories](#archived-repositories)
   - [Repository Settings](#repository-settings)
+- [Organization Team Synchronization](#organization-team-synchronization)
+- [Rulesets Observation](#rulesets-observation)
 - [Rules Section](#rules-section)
 - [Checks Section](#checks-section)
+- [Run Results and CI Exit Codes](#run-results-and-ci-exit-codes)
 - [Complete Configuration Example](#complete-configuration-example)
 
 ## Configuration Structure
@@ -31,6 +34,10 @@ rules:
   # Repository-specific rules
 checks:
   # Enabled compliance checks
+teams:
+  # Organization team definitions and dynamic rules
+rulesets:
+  mode: observe
 ```
 
 ## Version
@@ -185,8 +192,9 @@ Manages repository access and team permissions.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `remove_individual_collaborators` | `boolean` | Remove direct user access (enforce team-based access) |
-| `teams` | `array` | List of teams and their permissions |
+| `remove_individual_collaborators` | `boolean` | Remove direct user access independently of team management |
+| `manage_teams` | `boolean` | Explicitly manage direct repository team permissions |
+| `teams` | `array` | Desired direct team permissions; required when `manage_teams: true` |
 | `users` | `array` | Managed direct collaborators and their permissions |
 
 #### Team Configuration
@@ -211,6 +219,7 @@ Each team in the `teams` array has:
 defaults:
   permissions:
     remove_individual_collaborators: true
+    manage_teams: true
     teams:
       - team: "frontend-team"
         permission: write
@@ -228,6 +237,28 @@ defaults:
 ```
 
 Add the `users` section when specific direct collaborators must keep access. When `remove_individual_collaborators` is `true`, only the listed users will be preserved.
+
+Collaborator management does not require `teams`. For example, the following removes unlisted
+direct collaborators without reading or changing team permissions:
+
+```yaml
+defaults:
+  permissions:
+    remove_individual_collaborators: true
+```
+
+Team management uses fail-safe semantics:
+
+- `manage_teams: false` or omitted `teams`: do not manage team permissions.
+- A non-empty `teams` list without `manage_teams` keeps the historical behavior and manages direct
+  team permissions.
+- `teams: []` without `manage_teams: true` is inert and does not remove teams.
+- `manage_teams: true` requires `teams`; `teams: []` then explicitly removes every direct repository
+  team permission.
+
+Access inherited from Organization Roles (`access_source: organization`) is never changed. Only
+direct grants (`access_source: repository`) are managed. For compatibility with older API responses,
+an absent `access_source` is treated as direct; an unknown value is ignored with a warning.
 
 ### Archived Repositories
 
@@ -322,6 +353,61 @@ defaults:
       require_pr_template: true
 ```
 
+## Organization Team Synchronization
+
+The top-level `teams` section defines organization teams. Unlike repository checks,
+`org-team-sync` runs once per CLI execution, regardless of the number of repositories selected.
+
+**Path**: `teams`
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `definitions` | `array` | `[]` | Static team definitions and memberships |
+| `dynamic_rules` | `array` | `[]` | Teams whose membership is computed from organization data |
+| `dry_run` | `boolean` | `false` | Preview team synchronization even during an otherwise live run |
+| `unmanaged_teams` | `enum` | `ignore` | Handling for teams absent from configuration: `ignore`, `warn`, or `remove`; removal currently emits a warning because it is not implemented |
+
+An `all_org_members` dynamic rule supports these source-of-truth controls:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `membership_authoritative` | `boolean` | `false` | When true, remove current team members who are not in the resolved organization membership |
+| `preserve_maintainers` | `boolean` | `true` | Preserve the maintainer role of existing team maintainers |
+| `include_bots` | `boolean` | `false` | Include accounts reported by GitHub with type `Bot` |
+
+```yaml
+teams:
+  dynamic_rules:
+    - name: all
+      type: all_org_members
+      membership_authoritative: true
+      preserve_maintainers: true
+      include_bots: false
+```
+
+The rule uses GitHub's organization-members endpoint. Suspended accounts returned by that endpoint
+and bots (unless opted in) are excluded. Pending invitations and outside collaborators are not part
+of that endpoint and are therefore not included. Preserving maintainers avoids role churn, and an
+unchanged resolved membership produces no synchronization action.
+
+Use `membership_authoritative: true` only when this configuration is the membership source of
+truth. Keep the default `false` when another system such as Terraform also manages the team.
+
+## Rulesets Observation
+
+The optional top-level `rulesets` section enables read-only observation of GitHub rulesets:
+
+```yaml
+rulesets:
+  mode: observe
+```
+
+With `repo-rulesets-observe` enabled, the CLI reports applicable repository and inherited rulesets,
+their enforcement, the branches they cover, and overlaps with legacy branch protection or configured
+`branch_protection`. The check is informative: it emits findings but never proposes or applies a
+ruleset or branch-protection change. This allows Terraform or another system to remain the sole
+ruleset owner.
+
 ## Rules Section
 
 Rules allow you to apply different settings to specific repositories based on matching criteria.
@@ -408,13 +494,14 @@ Specifies which compliance checks to run.
 | `enabled` | `string[]` | List of checks to enable |
 
 **Available Checks**:
-- `org-team-sync`: Synchronizes organization teams with the desired state
+- `org-team-sync`: Synchronizes organization teams once per CLI run
 - `repo-merge-strategy`: Validates merge button settings
 - `repo-access-teams`: Validates team access and removes individual collaborators
 - `repo-branch-protection`: Ensures branch protection rules are configured
 - `repo-security-controls`: Validates security features are enabled
 - `repo-archival-policy`: Validates archived repository settings
 - `repo-settings`: Validates repository-level options (features, visibility, templates)
+- `repo-rulesets-observe`: Observes ruleset enforcement and branch-protection overlaps without changing them
 
 **Example**:
 ```yaml
@@ -427,6 +514,7 @@ checks:
     - repo-security-controls
     - repo-archival-policy
     - repo-settings
+    - repo-rulesets-observe
 ```
 
 If not specified, all checks are enabled by default.
@@ -434,6 +522,36 @@ If not specified, all checks are enabled by default.
 > Legacy identifiers (merge-methods, team-permissions, branch-protection,
 > security-scanning, archived-repos, team-sync, repository-settings) are still accepted and
 > automatically mapped to the new names.
+
+## Run Results and CI Exit Codes
+
+Every run reports three independent status dimensions:
+
+- `configuration`: whether the loaded configuration is valid;
+- `execution`: whether checks completed without execution or GitHub API errors;
+- `compliance`: whether the organization matches the desired state (`compliant`, `non_compliant`,
+  or `unknown` when execution errors prevent a reliable result).
+
+Console, Markdown, and JSON output include organization-scoped check results and actions grouped by
+category. Each category has `proposed`, `applied`, and `ignored` counters. For example, inherited
+Organization Role permissions are counted as ignored while direct team or collaborator changes are
+counted as proposed in dry-run mode.
+
+Use strict dry-run behavior in CI with:
+
+```bash
+github-compliance-cli run --config compliance.yml --token $GITHUB_TOKEN \
+  --dry-run --fail-on-changes
+```
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Successful run with no proposed changes; also the result of a successful non-strict dry-run |
+| `1` | Configuration, execution, or GitHub API error; also residual non-compliance after a live run |
+| `2` | Successful `--dry-run --fail-on-changes` run with one or more proposed changes |
+
+`--fail-on-changes` is valid only together with `--dry-run`; execution errors take precedence over
+proposed changes and return `1`.
 
 ## Complete Configuration Example
 
@@ -499,6 +617,7 @@ defaults:
 
   permissions:
     remove_individual_collaborators: true
+    manage_teams: true
     teams:
       - team: "engineering"
         permission: write
@@ -519,6 +638,19 @@ defaults:
     unarchive_active: false
     archive_patterns: ["*-deprecated"]
     keep_active_patterns: ["*-template"]
+
+# Organization-scoped team synchronization
+teams:
+  dynamic_rules:
+    - name: "all"
+      type: all_org_members
+      membership_authoritative: false
+      preserve_maintainers: true
+      include_bots: false
+
+# Read-only ruleset observation
+rulesets:
+  mode: observe
 
 # Repository-specific rules
 rules:
@@ -563,21 +695,14 @@ rules:
 # Enabled compliance checks
 checks:
   enabled:
-<<<<<<< HEAD
     - org-team-sync
     - repo-merge-strategy
     - repo-access-teams
     - repo-branch-protection
     - repo-security-controls
     - repo-archival-policy
-=======
-    - merge-methods
-    - team-permissions
-    - branch-protection
-    - security-scanning
-    - archived-repos
     - repo-settings
->>>>>>> 2644f36 (feat: add repository settings compliance check)
+    - repo-rulesets-observe
 ```
 
 ## Best Practices

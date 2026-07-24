@@ -11,7 +11,7 @@ import { GitHubClient } from './github/client';
 import { box, ConsoleLogger, header, ProgressLogger, setLogger } from './logging';
 import { JsonReporter, MarkdownReporter } from './reporting';
 import { ComplianceRunner } from './runner';
-import type { RunnerOptions } from './runner/types';
+import type { RunnerOptions, RunnerReport } from './runner/types';
 
 interface RunOptions {
   config: string;
@@ -26,6 +26,44 @@ interface RunOptions {
   mode?: string;
   verbose?: boolean;
   quiet?: boolean;
+  failOnChanges?: boolean;
+}
+
+export type RunExitCode = 0 | 1 | 2;
+
+export function determineRunExitCode(
+  report: RunnerReport,
+  options: Pick<RunOptions, 'dryRun' | 'failOnChanges'>
+): RunExitCode {
+  if (report.status.execution === 'error') return 1;
+  if (!options.dryRun && report.status.compliance !== 'compliant') return 1;
+  const proposedChanges = report.actions.filter(
+    (action) => action.disposition === 'proposed'
+  ).length;
+  if (options.dryRun && options.failOnChanges && proposedChanges > 0) return 2;
+  return 0;
+}
+
+function logActionSummary(report: RunnerReport): void {
+  const entries: Array<[string, keyof RunnerReport['actionSummary']]> = [
+    ['Branch protections', 'branch_protection'],
+    ['Organization-role permissions', 'organization_role_permission'],
+    ['Direct team permissions', 'direct_team_permission'],
+    ['Individual collaborators', 'individual_collaborator'],
+    ['Team synchronization', 'team_synchronization'],
+    ['Ruleset observations', 'ruleset_observation'],
+    ['Merge strategy', 'merge_strategy'],
+    ['Security controls', 'security_control'],
+    ['Archival policy', 'archival_policy'],
+    ['Repository settings', 'repository_setting'],
+  ];
+  console.log('\nAction summary:');
+  for (const [label, category] of entries) {
+    const value = report.actionSummary[category];
+    console.log(
+      `  ${label}: ${value.proposed} proposed, ${value.applied} applied, ${value.ignored} ignored`
+    );
+  }
 }
 
 interface ValidateOptions {
@@ -49,6 +87,9 @@ async function runCommand(options: RunOptions): Promise<void> {
   setLogger(logger);
 
   try {
+    if (options.failOnChanges && !options.dryRun) {
+      throw new Error('--fail-on-changes can only be used with --dry-run');
+    }
     // Validate configuration file exists
     const configPath = resolve(process.cwd(), options.config);
     if (!existsSync(configPath)) {
@@ -148,6 +189,7 @@ async function runCommand(options: RunOptions): Promise<void> {
     if (logger instanceof ProgressLogger) {
       logger.displaySummary();
     }
+    logActionSummary(report);
 
     // Generate report
     if (!(logger instanceof ProgressLogger)) {
@@ -190,17 +232,20 @@ async function runCommand(options: RunOptions): Promise<void> {
       console.log('='.repeat(60));
     }
 
-    // Exit with appropriate code
-    if (report.nonCompliantRepositories > 0 && !options.dryRun) {
-      logger.error(`${report.nonCompliantRepositories} repositories are non-compliant`);
-      process.exit(1);
-    } else if (report.errorRepositories > 0) {
-      logger.error(`${report.errorRepositories} repositories had errors during checking`);
-      process.exit(1);
+    const exitCode = determineRunExitCode(report, options);
+    const proposedChanges = report.actions.filter(
+      (action) => action.disposition === 'proposed'
+    ).length;
+    if (report.status.execution === 'error') {
+      logger.error('Execution completed with GitHub API or check errors; compliance is unknown');
+    } else if (report.status.compliance === 'non_compliant') {
+      const message = `Execution succeeded; organization is non-compliant; ${proposedChanges} change(s) proposed`;
+      if (options.dryRun) logger.warning(message);
+      else logger.error(message);
     } else {
       logger.success('All repositories are compliant!');
-      process.exit(0);
     }
+    process.exit(exitCode);
   } catch (error) {
     if (error instanceof Error) {
       logger.error(`Error: ${error.message}`);
@@ -427,6 +472,7 @@ function main(): void {
     .option('--mode <type>', 'Output mode: compact, detailed, or json', 'compact')
     .option('-v, --verbose', 'Enable verbose logging', false)
     .option('-q, --quiet', 'Minimal output (only errors and summary)', false)
+    .option('--fail-on-changes', 'Exit with code 2 when dry-run proposes changes', false)
     .action(async (options) => {
       // Validate format
       if (options.format !== 'json' && options.format !== 'markdown') {

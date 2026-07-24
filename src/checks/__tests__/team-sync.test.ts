@@ -1,8 +1,8 @@
 import type { ComplianceConfig } from '../../config/types';
-import type { GitHubClient, Repository } from '../../github/types';
+import type { GitHubClient } from '../../github/types';
 import { type Logger, resetLogger, setLogger } from '../../logging';
 import { TeamManager } from '../../teams';
-import type { CheckContext } from '../base';
+import type { OrganizationCheckContext } from '../base';
 import { TeamSyncCheck } from '../team-sync';
 
 const mockLogger: jest.Mocked<Logger> = {
@@ -13,24 +13,6 @@ const mockLogger: jest.Mocked<Logger> = {
   debug: jest.fn(),
   startGroup: jest.fn(),
   endGroup: jest.fn(),
-};
-
-const mockRepository: Repository = {
-  id: 1,
-  name: 'demo',
-  full_name: 'octo/demo',
-  private: false,
-  archived: false,
-  disabled: false,
-  fork: false,
-  default_branch: 'main',
-  updated_at: '2024-01-01T00:00:00Z',
-  pushed_at: '2024-01-01T00:00:00Z',
-  stargazers_count: 0,
-  forks_count: 0,
-  open_issues_count: 0,
-  size: 1,
-  language: 'TypeScript',
 };
 
 describe('TeamSyncCheck', () => {
@@ -47,12 +29,12 @@ describe('TeamSyncCheck', () => {
     resetLogger();
   });
 
-  function createContext(config: ComplianceConfig, dryRun = false): CheckContext {
+  function createContext(config: ComplianceConfig, dryRun = false): OrganizationCheckContext {
     return {
       client,
       config,
       dryRun,
-      repository: mockRepository,
+      organization: 'test-org',
     };
   }
 
@@ -90,6 +72,7 @@ describe('TeamSyncCheck', () => {
         removed: 0,
         skipped: 0,
       },
+      actions: [{ operation: 'create_team', team: 'platform' }],
     });
 
     const config: ComplianceConfig = {
@@ -101,7 +84,7 @@ describe('TeamSyncCheck', () => {
       },
     };
 
-    const result = await check.check(createContext(config));
+    const result = await check.execute(createContext(config, true));
 
     expect(result.compliant).toBe(false);
     expect(result.message).toContain('Preview: processed 1 team(s)');
@@ -122,6 +105,7 @@ describe('TeamSyncCheck', () => {
         removed: 0,
         skipped: 0,
       },
+      actions: [{ operation: 'create_team', team: 'platform' }],
     });
 
     const config: ComplianceConfig = {
@@ -133,10 +117,11 @@ describe('TeamSyncCheck', () => {
       },
     };
 
-    const result = await check.fix(createContext(config, false));
+    const result = await check.execute(createContext(config, false));
 
     expect(syncSpy).toHaveBeenCalledTimes(1);
     expect(result.message).toContain('Processed 1 team(s)');
+    expect(result.fixed).toBe(true);
     syncSpy.mockRestore();
   });
 });

@@ -18,6 +18,7 @@ const EMPTY_RESULT: SyncResult = {
   hasChanges: false,
   hasErrors: false,
   findings: [],
+  actions: [],
   summary: 'No team configuration defined; skipping synchronization.',
   stats: {
     processed: 0,
@@ -133,12 +134,13 @@ export class TeamManager {
 
   private determineTargetMembers(
     team: TeamDefinition,
-    members: TeamMember[]
+    members: TeamMember[],
+    forceManageMembers = false
   ): {
     members: TeamMember[];
     manageMembers: boolean;
   } {
-    if (members.length > 0) {
+    if (forceManageMembers || members.length > 0) {
       return { members, manageMembers: true };
     }
 
@@ -192,12 +194,14 @@ export class TeamManager {
         ],
         summary: 'Failed to synchronize teams: missing organization owner.',
         stats: { ...EMPTY_RESULT.stats },
+        actions: [],
       };
     }
 
     const dryRun = this.options.dryRun ?? this.config.dry_run ?? false;
 
     const findings: SyncFinding[] = [];
+    const actions: SyncResult['actions'] = [];
     const stats = {
       processed: 0,
       created: 0,
@@ -227,6 +231,7 @@ export class TeamManager {
         ],
         summary: 'Failed to synchronize teams due to dynamic rule resolution error.',
         stats: { ...EMPTY_RESULT.stats },
+        actions: [],
       };
     }
 
@@ -235,6 +240,8 @@ export class TeamManager {
         definition,
         members: definition.members ?? [],
         source: 'definition' as const,
+        membershipAuthoritative: true,
+        preserveMaintainers: false,
       })) ?? []),
       ...resolved.dynamicTeams,
     ];
@@ -246,6 +253,7 @@ export class TeamManager {
         findings,
         summary: 'No teams defined in configuration; nothing to synchronize.',
         stats,
+        actions,
       };
     }
 
@@ -267,6 +275,7 @@ export class TeamManager {
         ],
         summary: 'Failed to synchronize teams due to GitHub API error.',
         stats,
+        actions,
       };
     }
 
@@ -316,7 +325,8 @@ export class TeamManager {
 
       const { members: targetMembers, manageMembers } = this.determineTargetMembers(
         team.definition,
-        team.members
+        team.members,
+        team.source === 'dynamic'
       );
 
       const diff: TeamDiff = calculateTeamDiff({
@@ -324,6 +334,8 @@ export class TeamManager {
         slug,
         targetMembers,
         manageMembers,
+        membershipAuthoritative: team.membershipAuthoritative ?? true,
+        preserveMaintainers: team.preserveMaintainers ?? false,
         existingTeam: existingState,
         parentTeamId: parentTeamId ?? null,
         targetParentSlug: parentSlug,
@@ -354,6 +366,7 @@ export class TeamManager {
 
         if (outcome.created) {
           stats.created += 1;
+          actions.push({ operation: 'create_team', team: diff.team });
           this.recordFinding(findings, 'info', 'Team created.', diff.team);
         }
         const wasUpdated = !outcome.created && (outcome.updatedMetadata || outcome.updatedMembers);
@@ -368,6 +381,14 @@ export class TeamManager {
 
         if (wasUpdated) {
           stats.updated += 1;
+          actions.push({
+            operation: 'update_team',
+            team: diff.team,
+            details: {
+              metadata: outcome.updatedMetadata,
+              memberships: outcome.updatedMembers,
+            },
+          });
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -412,6 +433,7 @@ export class TeamManager {
       findings,
       summary,
       stats,
+      actions,
     };
   }
 }

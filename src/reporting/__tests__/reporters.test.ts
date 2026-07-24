@@ -35,6 +35,21 @@ const mockReport: RunnerReport = {
   compliancePercentage: 70,
   executionTime: 5000,
   timestamp: '2024-01-01T00:00:00Z',
+  organizationChecks: [],
+  status: { configuration: 'valid', execution: 'error', compliance: 'unknown' },
+  actions: [],
+  actionSummary: {
+    branch_protection: { proposed: 0, applied: 0, ignored: 0 },
+    organization_role_permission: { proposed: 0, applied: 0, ignored: 0 },
+    direct_team_permission: { proposed: 0, applied: 0, ignored: 0 },
+    individual_collaborator: { proposed: 0, applied: 0, ignored: 0 },
+    team_synchronization: { proposed: 0, applied: 0, ignored: 0 },
+    ruleset_observation: { proposed: 0, applied: 0, ignored: 0 },
+    merge_strategy: { proposed: 0, applied: 0, ignored: 0 },
+    security_control: { proposed: 0, applied: 0, ignored: 0 },
+    archival_policy: { proposed: 0, applied: 0, ignored: 0 },
+    repository_setting: { proposed: 0, applied: 0, ignored: 0 },
+  },
   repositories: [
     {
       repository: {

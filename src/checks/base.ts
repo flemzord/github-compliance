@@ -1,5 +1,6 @@
 import type { ComplianceConfig, MatchCriteria } from '../config/types';
 import type { GitHubClient, Repository } from '../github';
+import type { CheckFinding, ComplianceAction } from './types';
 
 export interface CheckResult {
   compliant: boolean;
@@ -7,6 +8,8 @@ export interface CheckResult {
   details?: Record<string, unknown>;
   fixed?: boolean;
   error?: string;
+  actions?: ComplianceAction[];
+  findings?: CheckFinding[];
 }
 
 export interface CheckContext {
@@ -34,6 +37,20 @@ export interface ComplianceCheck {
    * Apply fixes if not in dry-run mode
    */
   fix?(context: CheckContext): Promise<CheckResult>;
+}
+
+export interface OrganizationCheckContext {
+  client: GitHubClient;
+  config: ComplianceConfig;
+  dryRun: boolean;
+  organization: string;
+}
+
+export interface OrganizationCheck {
+  readonly name: string;
+  readonly description: string;
+  shouldRun(context: OrganizationCheckContext): boolean;
+  execute(context: OrganizationCheckContext): Promise<CheckResult>;
 }
 
 export abstract class BaseCheck implements ComplianceCheck {

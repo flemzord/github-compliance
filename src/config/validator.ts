@@ -213,10 +213,20 @@ export function validateDefaults(config: ComplianceConfig): string[] {
   }
 
   // Vérification pour les permissions d'équipes
-  if (config.defaults.permissions?.teams) {
-    const adminTeams = config.defaults.permissions.teams.filter((t) => t.permission === 'admin');
+  const permissions = config.defaults.permissions;
+  const teams = permissions?.teams;
+  if (permissions && teams) {
+    const adminTeams = teams.filter((t) => t.permission === 'admin');
     if (adminTeams.length === 0) {
-      warnings.push('No admin teams configured - ensure at least one team has admin access');
+      if (permissions.manage_teams === true) {
+        warnings.push(
+          'manage_teams is true with no admin team; all direct team permissions may be removed'
+        );
+      } else if (teams.length === 0 && permissions.manage_teams === undefined) {
+        warnings.push('teams: [] is inert unless manage_teams is explicitly set to true');
+      } else if (permissions.manage_teams !== false) {
+        warnings.push('No admin teams configured - ensure at least one team has admin access');
+      }
     }
   }
 

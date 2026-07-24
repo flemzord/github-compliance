@@ -194,7 +194,9 @@ describe('TeamPermissionsCheck', () => {
       expect(result.message).toBe('Repository permissions are configured correctly');
       expect(result.details?.current).toEqual({
         teams: mockTeamPermissions,
-        collaborators: mockCollaborators,
+        direct_teams: mockTeamPermissions,
+        inherited_teams: [],
+        collaborators: [],
       });
       expect(result.details?.expected).toEqual(
         configWithoutIndividualCollabRemoval.defaults.permissions
@@ -288,16 +290,8 @@ describe('TeamPermissionsCheck', () => {
 
         await check.check(contextWithoutTeams);
 
-        // Should warn about all existing teams since none are configured
-        expect(mockLogger.warning).toHaveBeenCalledWith(
-          expect.stringContaining("Team 'developers' has access")
-        );
-        expect(mockLogger.warning).toHaveBeenCalledWith(
-          expect.stringContaining("Team 'maintainers' has access")
-        );
-        expect(mockLogger.warning).toHaveBeenCalledWith(
-          expect.stringContaining("Team 'readers' has access")
-        );
+        // Empty teams are inert unless explicitly enabled with manage_teams.
+        expect(mockLogger.warning).not.toHaveBeenCalled();
       });
     });
 
@@ -1015,6 +1009,105 @@ describe('TeamPermissionsCheck', () => {
 
         expect(result.error).toBe('String error in fix');
       });
+    });
+  });
+
+  describe('safe permission ownership', () => {
+    it('ignores organization-role team access and never proposes removal', async () => {
+      (mockClient.getTeamPermissions as jest.Mock).mockResolvedValue([
+        {
+          id: 42,
+          name: 'All',
+          slug: 'all',
+          permission: 'pull',
+          access_source: 'organization',
+        },
+      ] satisfies TeamPermission[]);
+      const safeContext = {
+        ...context,
+        config: {
+          ...mockConfig,
+          defaults: {
+            permissions: { manage_teams: true, teams: [] },
+          },
+        },
+      };
+
+      const result = await check.check(safeContext);
+
+      expect(result.compliant).toBe(true);
+      expect(result.details?.actions_needed).toEqual([]);
+      expect(result.actions).toEqual([
+        expect.objectContaining({
+          category: 'organization_role_permission',
+          disposition: 'ignored',
+          operation: 'ignore_inherited_team_access',
+        }),
+      ]);
+    });
+
+    it('can remove a directly attached team when destructive management is explicit', async () => {
+      (mockClient.getTeamPermissions as jest.Mock).mockResolvedValue([
+        {
+          id: 43,
+          name: 'Legacy',
+          slug: 'legacy',
+          permission: 'write',
+          access_source: 'repository',
+        },
+      ] satisfies TeamPermission[]);
+      const destructiveContext = {
+        ...context,
+        config: {
+          ...mockConfig,
+          defaults: {
+            permissions: { manage_teams: true, teams: [] },
+          },
+        },
+      };
+
+      const result = await check.check(destructiveContext);
+
+      expect(result.compliant).toBe(false);
+      expect(result.details?.actions_needed).toContainEqual(
+        expect.objectContaining({ action: 'remove_team', team: 'legacy' })
+      );
+    });
+
+    it('removes individual collaborators without loading team permissions', async () => {
+      (mockClient.getCollaborators as jest.Mock).mockResolvedValue([mockCollaborators[0]]);
+      const collaboratorContext = {
+        ...context,
+        config: {
+          ...mockConfig,
+          defaults: {
+            permissions: { remove_individual_collaborators: true },
+          },
+        },
+      };
+
+      const result = await check.check(collaboratorContext);
+
+      expect(mockClient.getTeamPermissions).not.toHaveBeenCalled();
+      expect(result.details?.actions_needed).toContainEqual(
+        expect.objectContaining({ action: 'remove_collaborator', username: 'user1' })
+      );
+    });
+
+    it('treats teams: [] as inert without manage_teams', async () => {
+      const inertContext = {
+        ...context,
+        config: {
+          ...mockConfig,
+          defaults: { permissions: { teams: [] } },
+        },
+      };
+
+      const result = await check.check(inertContext);
+
+      expect(result.compliant).toBe(true);
+      expect(mockClient.getTeamPermissions).not.toHaveBeenCalled();
+      expect(result.actions).toEqual([]);
     });
   });
 

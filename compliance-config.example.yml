@@ -82,6 +82,8 @@ defaults:
   # Team permissions
   permissions:
     remove_individual_collaborators: true
+    # Required for explicit authoritative management, including teams: []
+    manage_teams: true
     teams:
       - team: "admins"
         permission: "admin"
@@ -94,6 +96,21 @@ defaults:
   # Archived repository settings
   archived_repos:
     admin_team_only: true
+
+# Organization team synchronization (runs once per CLI execution)
+teams:
+  dynamic_rules:
+    - name: "all"
+      type: "all_org_members"
+      # Add organization members without removing unmanaged team members
+      membership_authoritative: false
+      # Keep existing maintainers instead of demoting them to members
+      preserve_maintainers: true
+      include_bots: false
+
+# Observe applicable rulesets and legacy branch-protection overlaps without modifying either
+rulesets:
+  mode: "observe"
 
 # Override rules for specific repositories (optional)
 rules:
@@ -133,3 +150,4 @@ checks:
     - "repo-security-controls"
     - "repo-archival-policy"
     - "repo-settings"
+    - "repo-rulesets-observe"

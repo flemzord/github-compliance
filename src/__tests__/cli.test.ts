@@ -1,6 +1,7 @@
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { runCommand, validateCommand } from '../cli';
+import { determineRunExitCode, runCommand, validateCommand } from '../cli';
+import type { RunnerReport } from '../runner/types';
 
 // Mock dependencies before imports
 jest.mock('../github/client');
@@ -107,6 +108,25 @@ defaults:
             compliancePercentage: 80,
             executionTime: 5000,
             repositories: [],
+            organizationChecks: [],
+            status: {
+              configuration: 'valid',
+              execution: 'success',
+              compliance: 'non_compliant',
+            },
+            actions: [],
+            actionSummary: {
+              branch_protection: { proposed: 0, applied: 0, ignored: 0 },
+              organization_role_permission: { proposed: 0, applied: 0, ignored: 0 },
+              direct_team_permission: { proposed: 0, applied: 0, ignored: 0 },
+              individual_collaborator: { proposed: 0, applied: 0, ignored: 0 },
+              team_synchronization: { proposed: 0, applied: 0, ignored: 0 },
+              ruleset_observation: { proposed: 0, applied: 0, ignored: 0 },
+              merge_strategy: { proposed: 0, applied: 0, ignored: 0 },
+              security_control: { proposed: 0, applied: 0, ignored: 0 },
+              archival_policy: { proposed: 0, applied: 0, ignored: 0 },
+              repository_setting: { proposed: 0, applied: 0, ignored: 0 },
+            },
           }),
           // biome-ignore lint/suspicious/noExplicitAny: Mock object for testing
         }) as any
@@ -119,7 +139,7 @@ defaults:
       unlinkSync(testConfigPath);
     }
     // Clean up generated reports
-    ['compliance-report.md', 'compliance-report.json'].forEach((file) => {
+    ['compliance-report.md', 'compliance-report.json', 'custom-report.md'].forEach((file) => {
       if (existsSync(file)) {
         unlinkSync(file);
       }
@@ -380,5 +400,78 @@ defaults: {}
         useColors: true,
       });
     });
+  });
+});
+
+describe('determineRunExitCode', () => {
+  const report = (overrides: Partial<RunnerReport> = {}): RunnerReport =>
+    ({
+      status: { configuration: 'valid', execution: 'success', compliance: 'compliant' },
+      actions: [],
+      ...overrides,
+    }) as RunnerReport;
+
+  it('returns 0 for a successful dry-run without proposed changes', () => {
+    expect(determineRunExitCode(report(), { dryRun: true, failOnChanges: true })).toBe(0);
+  });
+
+  it('returns 2 for a strict dry-run with proposed changes', () => {
+    expect(
+      determineRunExitCode(
+        report({
+          status: { configuration: 'valid', execution: 'success', compliance: 'non_compliant' },
+          actions: [
+            {
+              scope: 'repository',
+              category: 'individual_collaborator',
+              operation: 'remove_collaborator',
+              disposition: 'proposed',
+              target: 'org/repo:user',
+            },
+          ],
+        }),
+        { dryRun: true, failOnChanges: true }
+      )
+    ).toBe(2);
+  });
+
+  it('gives execution errors precedence over proposed changes', () => {
+    expect(
+      determineRunExitCode(
+        report({
+          status: { configuration: 'valid', execution: 'error', compliance: 'unknown' },
+          actions: [
+            {
+              scope: 'repository',
+              category: 'individual_collaborator',
+              operation: 'remove_collaborator',
+              disposition: 'proposed',
+              target: 'org/repo:user',
+            },
+          ],
+        }),
+        { dryRun: true, failOnChanges: true }
+      )
+    ).toBe(1);
+  });
+
+  it('keeps ordinary dry-runs non-strict', () => {
+    expect(
+      determineRunExitCode(
+        report({
+          status: { configuration: 'valid', execution: 'success', compliance: 'non_compliant' },
+          actions: [
+            {
+              scope: 'repository',
+              category: 'individual_collaborator',
+              operation: 'remove_collaborator',
+              disposition: 'proposed',
+              target: 'org/repo:user',
+            },
+          ],
+        }),
+        { dryRun: true, failOnChanges: false }
+      )
+    ).toBe(0);
   });
 });

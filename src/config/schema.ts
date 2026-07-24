@@ -143,6 +143,9 @@ const DynamicTeamRuleSchema = z
     name: z.string(),
     description: z.string().optional(),
     type: z.enum(['all_org_members', 'by_filter', 'composite']),
+    membership_authoritative: z.boolean().optional(),
+    preserve_maintainers: z.boolean().optional(),
+    include_bots: z.boolean().optional(),
     filter: TeamMemberFilterSchema.optional(),
     compose: TeamCompositionSchema.optional(),
   })
@@ -172,6 +175,18 @@ const DynamicTeamRuleSchema = z
         message: 'Only composite rules may specify compose',
       });
     }
+    if (
+      value.type !== 'all_org_members' &&
+      (value.membership_authoritative !== undefined ||
+        value.preserve_maintainers !== undefined ||
+        value.include_bots !== undefined)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'membership_authoritative, preserve_maintainers and include_bots are only valid for all_org_members rules',
+      });
+    }
   });
 
 const TeamsConfigSchema = z
@@ -192,6 +207,9 @@ const CacheTtlSchema = z
     branchProtection: z.number().int().positive().optional(),
     collaborators: z.number().int().positive().optional(),
     teamPermissions: z.number().int().positive().optional(),
+    branches: z.number().int().positive().optional(),
+    rulesets: z.number().int().positive().optional(),
+    branchRules: z.number().int().positive().optional(),
     securitySettings: z.number().int().positive().optional(),
     vulnerabilityAlerts: z.number().int().positive().optional(),
     currentUser: z.number().int().positive().optional(),
@@ -231,11 +249,37 @@ const CacheSchema = z
   })
   .strict();
 
-const PermissionsSchema = z.object({
-  remove_individual_collaborators: z.boolean(),
-  teams: z.array(ConfigTeamPermissionSchema),
+const PermissionsFields = {
+  remove_individual_collaborators: z.boolean().optional(),
+  manage_teams: z.boolean().optional(),
+  teams: z.array(ConfigTeamPermissionSchema).optional(),
   users: z.array(ConfigUserPermissionSchema).optional(),
-});
+};
+
+const validateTeamManagement = (
+  value: { manage_teams?: boolean | undefined; teams?: unknown[] | undefined },
+  ctx: z.RefinementCtx
+): void => {
+  if (value.manage_teams === true && value.teams === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['teams'],
+      message: 'teams is required when manage_teams is true',
+    });
+  }
+};
+
+const PermissionsSchema = z.object(PermissionsFields).strict().superRefine(validateTeamManagement);
+const PartialPermissionsSchema = z
+  .object(PermissionsFields)
+  .strict()
+  .superRefine(validateTeamManagement);
+
+const RulesetsSchema = z
+  .object({
+    mode: z.literal('observe'),
+  })
+  .strict();
 
 const ArchivedReposSchema = z.object({
   admin_team_only: z.boolean(),
@@ -330,7 +374,7 @@ const RuleSchema = z.object({
       merge_methods: MergeMethodsSchema.partial(),
       branch_protection: PartialBranchProtectionInputSchema,
       security: SecuritySchema.partial(),
-      permissions: PermissionsSchema.partial(),
+      permissions: PartialPermissionsSchema,
       archived_repos: ArchivedReposSchema.partial(),
       repository_settings: RepositorySettingsSchema.partial(),
     })
@@ -346,6 +390,7 @@ const NEW_CHECK_NAMES = [
   'repo-branch-protection',
   'repo-security-controls',
   'repo-archival-policy',
+  'repo-rulesets-observe',
 ] as const;
 
 const LEGACY_CHECK_NAMES = [
@@ -389,6 +434,7 @@ export const ComplianceConfigSchema = z.object({
   checks: ChecksSchema.optional(),
   cache: CacheSchema.optional(),
   teams: TeamsConfigSchema.optional(),
+  rulesets: RulesetsSchema.optional(),
 });
 
 export type ComplianceConfig = z.infer<typeof ComplianceConfigSchema>;

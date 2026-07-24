@@ -1,7 +1,8 @@
 import type { Logger } from '../logging';
 import * as rootLogger from '../logging';
 import { TeamManager, type TeamSyncOptions } from '../teams';
-import { BaseCheck, type CheckContext, type CheckResult } from './base';
+import type { CheckResult, OrganizationCheck, OrganizationCheckContext } from './base';
+import type { CheckFinding, ComplianceAction } from './types';
 
 function createLoggerAdapter(): Logger {
   const noop = (): void => {
@@ -17,26 +18,32 @@ function createLoggerAdapter(): Logger {
   };
 }
 
-export class TeamSyncCheck extends BaseCheck {
+function createResult(
+  result: CheckResult,
+  actions: ComplianceAction[],
+  findings: CheckFinding[]
+): CheckResult {
+  return { ...result, actions, findings };
+}
+
+export class TeamSyncCheck implements OrganizationCheck {
   readonly name = 'org-team-sync';
   readonly description = 'Preview of GitHub team synchronization based on configuration.';
 
-  shouldRun(context: CheckContext): boolean {
-    if (!super.shouldRun(context)) return false;
+  shouldRun(context: OrganizationCheckContext): boolean {
     return context.config.teams !== undefined;
   }
 
-  async check(context: CheckContext): Promise<CheckResult> {
+  async execute(context: OrganizationCheckContext): Promise<CheckResult> {
     if (!context.config.teams) {
-      return this.createCompliantResult('No team configuration defined for this run.');
+      return { compliant: true, message: 'No team configuration defined for this run.' };
     }
 
+    const effectiveDryRun = context.dryRun || context.config.teams.dry_run === true;
     const baseOptions: TeamSyncOptions = {
-      dryRun: true,
+      dryRun: effectiveDryRun,
+      owner: context.organization,
     };
-    if (context.config.organization) {
-      baseOptions.owner = context.config.organization;
-    }
     const unmanagedTeams = context.config.teams.unmanaged_teams;
     const manager = new TeamManager(
       context.client,
@@ -46,56 +53,55 @@ export class TeamSyncCheck extends BaseCheck {
     );
 
     const result = await manager.sync();
+    const actions: ComplianceAction[] = result.actions.map((action) => ({
+      scope: 'organization',
+      category: 'team_synchronization',
+      operation: action.operation,
+      disposition: effectiveDryRun ? 'proposed' : 'applied',
+      target: `${context.organization}:${action.team}`,
+      ...(action.details && { details: action.details }),
+    }));
+    const findings: CheckFinding[] = result.findings.map((finding) => ({
+      level: finding.level,
+      message: finding.message,
+      details: {
+        ...(finding.team && { team: finding.team }),
+        ...(finding.details ?? {}),
+      },
+    }));
 
     if (result.hasErrors) {
-      return this.createErrorResult('Team synchronization encountered errors', result.summary);
+      return createResult(
+        {
+          compliant: false,
+          message: 'Team synchronization encountered errors',
+          error: result.summary,
+          details: { stats: result.stats },
+        },
+        actions,
+        findings
+      );
     }
 
     if (result.hasChanges) {
-      return this.createNonCompliantResult(result.summary, {
-        findings: result.findings,
-        stats: result.stats,
-      });
+      return createResult(
+        effectiveDryRun
+          ? { compliant: false, message: result.summary, details: { stats: result.stats } }
+          : {
+              compliant: true,
+              fixed: true,
+              message: result.summary,
+              details: { stats: result.stats },
+            },
+        actions,
+        findings
+      );
     }
 
-    return this.createCompliantResult(result.summary, {
-      findings: result.findings,
-      stats: result.stats,
-    });
-  }
-
-  async fix(context: CheckContext): Promise<CheckResult> {
-    if (!context.config.teams) {
-      return this.createCompliantResult('No team configuration defined for this run.');
-    }
-
-    if (context.dryRun) {
-      return this.check(context);
-    }
-
-    const baseOptions: TeamSyncOptions = {
-      dryRun: false,
-    };
-    if (context.config.organization) {
-      baseOptions.owner = context.config.organization;
-    }
-    const unmanagedTeams = context.config.teams.unmanaged_teams;
-    const manager = new TeamManager(
-      context.client,
-      context.config.teams,
-      createLoggerAdapter(),
-      unmanagedTeams !== undefined ? { ...baseOptions, unmanagedTeams } : baseOptions
+    return createResult(
+      { compliant: true, message: result.summary, details: { stats: result.stats } },
+      actions,
+      findings
     );
-
-    const result = await manager.sync();
-
-    if (result.hasErrors) {
-      return this.createErrorResult('Team synchronization encountered errors', result.summary);
-    }
-
-    return this.createFixedResult(result.summary, {
-      findings: result.findings,
-      stats: result.stats,
-    });
   }
 }

@@ -70,8 +70,9 @@ export interface ConfigUserPermission {
 }
 
 export interface Permissions {
-  remove_individual_collaborators: boolean;
-  teams: ConfigTeamPermission[];
+  remove_individual_collaborators?: boolean;
+  manage_teams?: boolean;
+  teams?: ConfigTeamPermission[];
   users?: ConfigUserPermission[];
 }
 
@@ -126,6 +127,9 @@ interface BaseDynamicRule {
 export type DynamicTeamRule =
   | (BaseDynamicRule & {
       type: 'all_org_members';
+      membership_authoritative?: boolean;
+      preserve_maintainers?: boolean;
+      include_bots?: boolean;
       filter?: never;
       compose?: never;
     })
@@ -147,6 +151,10 @@ export interface TeamsConfig {
   dynamic_rules?: DynamicTeamRule[];
   dry_run?: boolean;
   unmanaged_teams?: UnmanagedTeamsMode;
+}
+
+export interface RulesetsConfig {
+  mode: 'observe';
 }
 
 export interface ArchivedRepos {
@@ -224,4 +232,5 @@ export interface ComplianceConfig {
   checks?: Checks;
   cache?: CacheConfig;
   teams?: TeamsConfig;
+  rulesets?: RulesetsConfig;
 }

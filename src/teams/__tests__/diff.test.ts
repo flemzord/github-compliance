@@ -82,4 +82,56 @@ describe('teams/diff', () => {
       { username: 'octocat', newRole: 'maintainer' },
     ]);
   });
+
+  it('preserves maintainers and extra members in non-authoritative mode', () => {
+    const diff = calculateTeamDiff({
+      definition: { name: 'all' },
+      slug: 'all',
+      targetMembers: [{ username: 'octocat', role: 'member' }],
+      manageMembers: true,
+      membershipAuthoritative: false,
+      preserveMaintainers: true,
+      existingTeam: {
+        id: 1,
+        name: 'all',
+        slug: 'all',
+        description: null,
+        privacy: 'closed',
+        parent: null,
+        members: [
+          { username: 'octocat', role: 'maintainer' },
+          { username: 'service-user', role: 'member' },
+        ],
+      },
+    });
+
+    expect(diff.changes.membersToRemove).toEqual([]);
+    expect(diff.changes.membersToUpdateRole).toEqual([]);
+  });
+
+  it('removes extra members only when membership is authoritative', () => {
+    const diff = calculateTeamDiff({
+      definition: { name: 'all' },
+      slug: 'all',
+      targetMembers: [{ username: 'octocat', role: 'member' }],
+      manageMembers: true,
+      membershipAuthoritative: true,
+      preserveMaintainers: true,
+      existingTeam: {
+        id: 1,
+        name: 'all',
+        slug: 'all',
+        description: null,
+        privacy: 'closed',
+        parent: null,
+        members: [
+          { username: 'octocat', role: 'maintainer' },
+          { username: 'service-user', role: 'member' },
+        ],
+      },
+    });
+
+    expect(diff.changes.membersToRemove).toEqual(['service-user']);
+    expect(diff.changes.membersToUpdateRole).toEqual([]);
+  });
 });

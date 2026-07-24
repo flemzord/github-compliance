@@ -51,4 +51,40 @@ describe('teams/dynamic', () => {
     expect(resolved.dynamicTeams).toHaveLength(0);
     expect(logger.warning).toHaveBeenCalledTimes(2);
   });
+
+  it('excludes bots and suspended members by default', async () => {
+    const github = {
+      listOrganizationMembers: jest.fn().mockResolvedValue([
+        { login: 'octocat', type: 'User' },
+        { login: 'automation', type: 'Bot' },
+        { login: 'suspended', type: 'User', suspended_at: '2026-01-01T00:00:00Z' },
+      ]),
+    } as unknown as GitHubClient;
+
+    const resolved = await resolveTeams(
+      github,
+      { dynamic_rules: [{ name: 'all', type: 'all_org_members' }] },
+      { logger, dryRun: true },
+      'test-org'
+    );
+
+    expect(resolved.dynamicTeams[0]?.members).toEqual([{ username: 'octocat', role: 'member' }]);
+    expect(resolved.dynamicTeams[0]?.membershipAuthoritative).toBe(false);
+    expect(resolved.dynamicTeams[0]?.preserveMaintainers).toBe(true);
+  });
+
+  it('can include bot organization members explicitly', async () => {
+    const github = {
+      listOrganizationMembers: jest.fn().mockResolvedValue([{ login: 'automation', type: 'Bot' }]),
+    } as unknown as GitHubClient;
+
+    const resolved = await resolveTeams(
+      github,
+      { dynamic_rules: [{ name: 'all', type: 'all_org_members', include_bots: true }] },
+      { logger, dryRun: true },
+      'test-org'
+    );
+
+    expect(resolved.dynamicTeams[0]?.members).toEqual([{ username: 'automation', role: 'member' }]);
+  });
 });

@@ -2,6 +2,7 @@ import { ArchivedReposCheck } from '../../checks/archived-repos';
 import { BranchProtectionCheck } from '../../checks/branch-protection';
 import { MergeMethodsCheck } from '../../checks/merge-methods';
 import { RepositorySettingsCheck } from '../../checks/repository-settings';
+import { RulesetsObserveCheck } from '../../checks/rulesets-observe';
 import { SecurityScanningCheck } from '../../checks/security-scanning';
 import { TeamPermissionsCheck } from '../../checks/team-permissions';
 import { TeamSyncCheck } from '../../checks/team-sync';
@@ -17,6 +18,7 @@ describe('check-registry', () => {
       expect(getCheck('repo-security-controls')).toBe(SecurityScanningCheck);
       expect(getCheck('repo-archival-policy')).toBe(ArchivedReposCheck);
       expect(getCheck('repo-settings')).toBe(RepositorySettingsCheck);
+      expect(getCheck('repo-rulesets-observe')).toBe(RulesetsObserveCheck);
     });
 
     it('should support legacy check name aliases', () => {
@@ -55,6 +57,7 @@ describe('check-registry', () => {
         'repo-security-controls',
         'repo-archival-policy',
         'repo-settings',
+        'repo-rulesets-observe',
       ]);
     });
 

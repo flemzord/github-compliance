@@ -12,6 +12,8 @@ export class MarkdownReporter {
     lines.push('');
     lines.push(`**Generated:** ${new Date(report.timestamp).toLocaleString()}`);
     lines.push(`**Execution Time:** ${(report.executionTime / 1000).toFixed(2)} seconds`);
+    lines.push(`**Execution Status:** ${report.status.execution}`);
+    lines.push(`**Compliance Status:** ${report.status.compliance}`);
     lines.push('');
 
     // Summary Statistics
@@ -35,6 +37,37 @@ export class MarkdownReporter {
     lines.push('');
     lines.push(`**Overall Compliance Rate:** ${report.compliancePercentage}%`);
     lines.push('');
+
+    lines.push('## Action Summary');
+    lines.push('');
+    lines.push('| Category | Proposed | Applied | Ignored |');
+    lines.push('|----------|----------|---------|---------|');
+    for (const [category, counts] of Object.entries(report.actionSummary)) {
+      lines.push(
+        `| ${category.replace(/_/g, ' ')} | ${counts.proposed} | ${counts.applied} | ${counts.ignored} |`
+      );
+    }
+    lines.push('');
+
+    if (report.organizationChecks.length > 0) {
+      lines.push('## Organization Checks');
+      lines.push('');
+      lines.push('| Check | Status | Message |');
+      lines.push('|-------|--------|---------|');
+      for (const check of report.organizationChecks) {
+        const status = check.result.error
+          ? '⚠️ Error'
+          : check.result.fixed
+            ? '🔧 Fixed'
+            : check.result.compliant
+              ? '✅ Pass'
+              : '❌ Changes proposed';
+        lines.push(
+          `| ${check.checkName} | ${status} | ${this.truncate(check.result.message, 80)} |`
+        );
+      }
+      lines.push('');
+    }
 
     // Non-compliant repositories details
     const nonCompliant = report.repositories.filter((r) => !r.compliant);
@@ -96,7 +129,9 @@ export class MarkdownReporter {
     lines.push('## Recommendations');
     lines.push('');
 
-    if (report.nonCompliantRepositories > 0) {
+    if (report.status.execution === 'error') {
+      lines.push('1. Resolve execution and GitHub API errors before assessing compliance');
+    } else if (report.status.compliance === 'non_compliant') {
       lines.push('1. Review and fix non-compliant repositories');
       lines.push('2. Consider running with `--fix` flag to auto-remediate issues');
       lines.push('3. Update repository configurations to match compliance standards');
@@ -123,6 +158,12 @@ export class MarkdownReporter {
 
     // Quick stats
     lines.push(`### ${report.compliancePercentage}% Compliant`);
+    lines.push('');
+    lines.push(`- Execution: **${report.status.execution}**`);
+    lines.push(`- Compliance: **${report.status.compliance}**`);
+    lines.push(
+      `- Actions: **${report.actions.filter((action) => action.disposition === 'proposed').length}** proposed, **${report.actions.filter((action) => action.disposition === 'applied').length}** applied, **${report.actions.filter((action) => action.disposition === 'ignored').length}** ignored`
+    );
     lines.push('');
     lines.push(`- ✅ **${report.compliantRepositories}** compliant repositories`);
     lines.push(`- ❌ **${report.nonCompliantRepositories}** non-compliant repositories`);

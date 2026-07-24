@@ -19,6 +19,37 @@ export interface AppliedAction {
   details: Record<string, unknown>;
 }
 
+export type ActionScope = 'organization' | 'repository';
+
+export type ActionCategory =
+  | 'branch_protection'
+  | 'organization_role_permission'
+  | 'direct_team_permission'
+  | 'individual_collaborator'
+  | 'team_synchronization'
+  | 'ruleset_observation'
+  | 'merge_strategy'
+  | 'security_control'
+  | 'archival_policy'
+  | 'repository_setting';
+
+export type ActionDisposition = 'proposed' | 'applied' | 'ignored';
+
+export interface ComplianceAction {
+  scope: ActionScope;
+  category: ActionCategory;
+  operation: string;
+  disposition: ActionDisposition;
+  target: string;
+  details?: Record<string, unknown>;
+}
+
+export interface CheckFinding {
+  level: 'info' | 'warning' | 'error';
+  message: string;
+  details?: Record<string, unknown>;
+}
+
 export interface CollaboratorPermissions {
   admin?: boolean;
   maintain?: boolean;

@@ -139,6 +139,9 @@ const jsonSchema = {
     teams: {
       $ref: "#/definitions/teams",
     },
+    rulesets: {
+      $ref: "#/definitions/rulesets",
+    },
   },
   additionalProperties: false,
   definitions: {
@@ -159,6 +162,7 @@ const jsonSchema = {
               "repo-security-controls",
               "repo-archival-policy",
               "repo-settings",
+              "repo-rulesets-observe",
               // Legacy names (will be transformed)
               "team-sync",
               "merge-methods",
@@ -199,6 +203,18 @@ const jsonSchema = {
           type: "string",
           enum: ["ignore", "warn", "remove"],
           description: "How to handle teams not defined in configuration",
+        },
+      },
+      additionalProperties: false,
+    },
+    rulesets: {
+      type: "object",
+      required: ["mode"],
+      properties: {
+        mode: {
+          type: "string",
+          const: "observe",
+          description: "Observe effective rulesets without modifying them",
         },
       },
       additionalProperties: false,
@@ -271,6 +287,21 @@ const jsonSchema = {
           type: "string",
           enum: ["all_org_members", "by_filter", "composite"],
           description: "Type of dynamic rule",
+        },
+        membership_authoritative: {
+          type: "boolean",
+          default: false,
+          description: "Remove members not returned by all_org_members",
+        },
+        preserve_maintainers: {
+          type: "boolean",
+          default: true,
+          description: "Keep existing maintainers as maintainers",
+        },
+        include_bots: {
+          type: "boolean",
+          default: false,
+          description: "Include organization members whose type is Bot",
         },
         filter: {
           $ref: "#/definitions/team_member_filter",
@@ -415,6 +446,21 @@ const jsonSchema = {
           type: "integer",
           minimum: 1,
           description: "TTL for team permission listings",
+        },
+        branches: {
+          type: "integer",
+          minimum: 1,
+          description: "TTL for branch listings",
+        },
+        rulesets: {
+          type: "integer",
+          minimum: 1,
+          description: "TTL for repository rulesets",
+        },
+        branchRules: {
+          type: "integer",
+          minimum: 1,
+          description: "TTL for active rules applying to branches",
         },
         securitySettings: {
           type: "integer",
@@ -927,12 +973,15 @@ const jsonSchema = {
     permissions: {
       type: "object",
       description: "Defines team access levels and collaborator management",
-      required: ["remove_individual_collaborators", "teams"],
       properties: {
         remove_individual_collaborators: {
           type: "boolean",
           description:
             "Remove individual collaborators (keep only team access)",
+        },
+        manage_teams: {
+          type: "boolean",
+          description: "Explicitly enable or disable direct team permission management",
         },
         teams: {
           type: "array",
@@ -949,12 +998,21 @@ const jsonSchema = {
           },
         },
       },
+      allOf: [
+        {
+          if: { properties: { manage_teams: { const: true } }, required: ["manage_teams"] },
+          then: { required: ["teams"] },
+        },
+      ],
       additionalProperties: false,
     },
     permissions_partial: {
       type: "object",
       properties: {
         remove_individual_collaborators: {
+          type: "boolean",
+        },
+        manage_teams: {
           type: "boolean",
         },
         teams: {
@@ -970,6 +1028,12 @@ const jsonSchema = {
           },
         },
       },
+      allOf: [
+        {
+          if: { properties: { manage_teams: { const: true } }, required: ["manage_teams"] },
+          then: { required: ["teams"] },
+        },
+      ],
       additionalProperties: false,
     },
     team_permission: {

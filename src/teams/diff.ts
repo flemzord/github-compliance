@@ -6,6 +6,8 @@ interface CalculateTeamDiffParams {
   slug: string;
   targetMembers: TeamMember[];
   manageMembers: boolean;
+  membershipAuthoritative?: boolean;
+  preserveMaintainers?: boolean;
   existingTeam: GitHubTeamState | null;
   parentTeamId?: number | null;
   targetParentSlug?: string | null;
@@ -30,7 +32,9 @@ function normalizeNotificationSetting(
 function compareMembers(
   currentMembers: TeamMember[],
   targetMembers: TeamMember[],
-  manageMembers: boolean
+  manageMembers: boolean,
+  membershipAuthoritative: boolean,
+  preserveMaintainers: boolean
 ): {
   membersToAdd: TeamMember[];
   membersToRemove: string[];
@@ -66,14 +70,17 @@ function compareMembers(
     }
 
     const existingRole = existing.role ?? 'member';
-    const desiredRole = targetMember.role ?? 'member';
+    const desiredRole =
+      preserveMaintainers && existingRole === 'maintainer'
+        ? 'maintainer'
+        : (targetMember.role ?? 'member');
     if (existingRole !== desiredRole) {
       membersToUpdateRole.push({ username: targetMember.username, newRole: desiredRole });
     }
   }
 
   for (const [username, member] of currentMap.entries()) {
-    if (!targetMap.has(username)) {
+    if (membershipAuthoritative && !targetMap.has(username)) {
       membersToRemove.push(member.username);
     }
   }
@@ -86,6 +93,8 @@ export function calculateTeamDiff({
   slug,
   targetMembers,
   manageMembers,
+  membershipAuthoritative = true,
+  preserveMaintainers = false,
   existingTeam,
   parentTeamId,
   targetParentSlug,
@@ -110,7 +119,13 @@ export function calculateTeamDiff({
     definition.notification_setting ?? (existingTeam ? currentNotification : null)
   );
 
-  const membersDiff = compareMembers(existingTeam?.members ?? [], targetMembers, manageMembers);
+  const membersDiff = compareMembers(
+    existingTeam?.members ?? [],
+    targetMembers,
+    manageMembers,
+    membershipAuthoritative,
+    preserveMaintainers
+  );
 
   const changes = {
     membersToAdd: membersDiff.membersToAdd,
@@ -153,6 +168,8 @@ export function calculateTeamDiff({
     definition,
     targetMembers,
     manageMembers,
+    membershipAuthoritative,
+    preserveMaintainers,
     targetParentId: parentTeamId ?? null,
     changes,
   };

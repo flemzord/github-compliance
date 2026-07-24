@@ -1,6 +1,11 @@
 import * as logger from '../logging';
 import { BaseCheck, type CheckContext, type CheckResult } from './base';
-import type { AppliedAction, CheckDetails, CollaboratorPermissions } from './types';
+import type {
+  AppliedAction,
+  CheckDetails,
+  CollaboratorPermissions,
+  ComplianceAction,
+} from './types';
 
 export class TeamPermissionsCheck extends BaseCheck {
   readonly name = 'repo-access-teams';
@@ -33,15 +38,66 @@ export class TeamPermissionsCheck extends BaseCheck {
       };
 
       const expectedUsers = Array.isArray(config.users) ? config.users : [];
+      const expectedTeams = Array.isArray(config.teams) ? config.teams : [];
+      const manageTeams =
+        config.manage_teams === true ||
+        (config.manage_teams === undefined && expectedTeams.length > 0);
+      const manageCollaborators =
+        config.remove_individual_collaborators === true || expectedUsers.length > 0;
+      const actions: ComplianceAction[] = [];
+
+      if (config.manage_teams === true && !Array.isArray(config.teams)) {
+        return this.createErrorResult(
+          'Invalid repository permissions configuration',
+          'teams is required when manage_teams is true'
+        );
+      }
 
       // Get current teams and collaborators
       const [currentTeams, currentCollaborators] = await Promise.all([
-        context.client.getTeamPermissions(owner, repo),
-        context.client.getCollaborators(owner, repo),
+        manageTeams ? context.client.getTeamPermissions(owner, repo) : Promise.resolve([]),
+        manageCollaborators ? context.client.getCollaborators(owner, repo) : Promise.resolve([]),
       ]);
+
+      const directTeams = currentTeams.filter(
+        (team) => team.access_source === undefined || team.access_source === 'repository'
+      );
+      const inheritedTeams = currentTeams.filter((team) => team.access_source === 'organization');
+      const unknownSourceTeams = currentTeams.filter(
+        (team) =>
+          team.access_source !== undefined &&
+          team.access_source !== 'repository' &&
+          team.access_source !== 'organization'
+      );
+
+      for (const team of inheritedTeams) {
+        actions.push({
+          scope: 'repository',
+          category: 'organization_role_permission',
+          operation: 'ignore_inherited_team_access',
+          disposition: 'ignored',
+          target: `${repository.full_name}:${team.slug}`,
+          details: { permission: team.permission, access_source: team.access_source },
+        });
+      }
+      for (const team of unknownSourceTeams) {
+        logger.warning(
+          `Team '${team.slug}' has unknown access source '${team.access_source}' on ${repository.full_name}; ignoring it safely`
+        );
+        actions.push({
+          scope: 'repository',
+          category: 'organization_role_permission',
+          operation: 'ignore_unknown_team_access',
+          disposition: 'ignored',
+          target: `${repository.full_name}:${team.slug}`,
+          details: { permission: team.permission, access_source: team.access_source },
+        });
+      }
 
       if (details.current && typeof details.current === 'object') {
         (details.current as Record<string, unknown>).teams = currentTeams;
+        (details.current as Record<string, unknown>).direct_teams = directTeams;
+        (details.current as Record<string, unknown>).inherited_teams = inheritedTeams;
         (details.current as Record<string, unknown>).collaborators = currentCollaborators;
       }
 
@@ -52,9 +108,9 @@ export class TeamPermissionsCheck extends BaseCheck {
       );
 
       // Check team permissions
-      if (config.teams) {
-        for (const expectedTeam of config.teams) {
-          const currentTeam = currentTeams.find((t) => t.slug === expectedTeam.team);
+      if (manageTeams) {
+        for (const expectedTeam of expectedTeams) {
+          const currentTeam = directTeams.find((t) => t.slug === expectedTeam.team);
           const expectedPermission = this.normalizePermissionLevel(expectedTeam.permission);
 
           if (!currentTeam) {
@@ -66,6 +122,14 @@ export class TeamPermissionsCheck extends BaseCheck {
                 action: 'add_team',
                 team: expectedTeam.team,
                 permission: expectedTeam.permission,
+              });
+              actions.push({
+                scope: 'repository',
+                category: 'direct_team_permission',
+                operation: 'add_team',
+                disposition: 'proposed',
+                target: `${repository.full_name}:${expectedTeam.team}`,
+                details: { permission: expectedTeam.permission },
               });
             }
           } else {
@@ -83,14 +147,25 @@ export class TeamPermissionsCheck extends BaseCheck {
                   current_permission: currentTeam.permission,
                   new_permission: expectedTeam.permission,
                 });
+                actions.push({
+                  scope: 'repository',
+                  category: 'direct_team_permission',
+                  operation: 'update_team',
+                  disposition: 'proposed',
+                  target: `${repository.full_name}:${expectedTeam.team}`,
+                  details: {
+                    current_permission: currentTeam.permission,
+                    permission: expectedTeam.permission,
+                  },
+                });
               }
             }
           }
         }
 
         // Check for extra teams that should be removed
-        const expectedTeamSlugs = config.teams.map((t) => t.team);
-        for (const currentTeam of currentTeams) {
+        const expectedTeamSlugs = expectedTeams.map((t) => t.team);
+        for (const currentTeam of directTeams) {
           if (!expectedTeamSlugs.includes(currentTeam.slug)) {
             issues.push(`Team '${currentTeam.slug}' has unauthorized access and should be removed`);
             logger.warning(
@@ -101,6 +176,14 @@ export class TeamPermissionsCheck extends BaseCheck {
                 action: 'remove_team',
                 team: currentTeam.slug,
                 current_permission: currentTeam.permission,
+              });
+              actions.push({
+                scope: 'repository',
+                category: 'direct_team_permission',
+                operation: 'remove_team',
+                disposition: 'proposed',
+                target: `${repository.full_name}:${currentTeam.slug}`,
+                details: { current_permission: currentTeam.permission },
               });
             }
           }
@@ -123,6 +206,14 @@ export class TeamPermissionsCheck extends BaseCheck {
                 username: expectedUser.user,
                 permission: expectedUser.permission,
               });
+              actions.push({
+                scope: 'repository',
+                category: 'individual_collaborator',
+                operation: 'add_collaborator',
+                disposition: 'proposed',
+                target: `${repository.full_name}:${expectedUser.user}`,
+                details: { permission: expectedUser.permission },
+              });
             }
           } else {
             const collaboratorPermission = this.getCollaboratorPermissionLevel(
@@ -140,6 +231,17 @@ export class TeamPermissionsCheck extends BaseCheck {
                   username: expectedUser.user,
                   current_permission: collaboratorPermission,
                   permission: expectedUser.permission,
+                });
+                actions.push({
+                  scope: 'repository',
+                  category: 'individual_collaborator',
+                  operation: 'update_collaborator_permission',
+                  disposition: 'proposed',
+                  target: `${repository.full_name}:${expectedUser.user}`,
+                  details: {
+                    current_permission: collaboratorPermission,
+                    permission: expectedUser.permission,
+                  },
                 });
               }
             }
@@ -168,22 +270,36 @@ export class TeamPermissionsCheck extends BaseCheck {
                 username: collab.login,
                 current_permission: this.getCollaboratorPermissionLevel(collab.permissions),
               });
+              actions.push({
+                scope: 'repository',
+                category: 'individual_collaborator',
+                operation: 'remove_collaborator',
+                disposition: 'proposed',
+                target: `${repository.full_name}:${collab.login}`,
+                details: {
+                  current_permission: this.getCollaboratorPermissionLevel(collab.permissions),
+                },
+              });
             }
           }
         }
       }
 
       if (issues.length === 0) {
-        return this.createCompliantResult(
+        const result = this.createCompliantResult(
           'Repository permissions are configured correctly',
           details
         );
+        result.actions = actions;
+        return result;
       }
 
-      return this.createNonCompliantResult(
+      const result = this.createNonCompliantResult(
         `Permission issues found: ${issues.join('; ')}`,
         details
       );
+      result.actions = actions;
+      return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
@@ -214,6 +330,7 @@ export class TeamPermissionsCheck extends BaseCheck {
       }
 
       const appliedActions: AppliedAction[] = [];
+      const complianceActions: ComplianceAction[] = [];
       const details = checkResult.details as CheckDetails;
       const actions_needed = details?.actions_needed;
 
@@ -240,6 +357,13 @@ export class TeamPermissionsCheck extends BaseCheck {
                   permission: action.permission || action.new_permission,
                 },
               });
+              complianceActions.push({
+                scope: 'repository',
+                category: 'direct_team_permission',
+                operation: action.action,
+                disposition: 'applied',
+                target: `${repository.full_name}:${String(action.team)}`,
+              });
               logger.info(
                 `✅ ${action.action === 'add_team' ? 'Added' : 'Updated'} team ${action.team} for ${repository.full_name}`
               );
@@ -250,6 +374,13 @@ export class TeamPermissionsCheck extends BaseCheck {
               appliedActions.push({
                 action: 'remove_team',
                 details: { team: action.team },
+              });
+              complianceActions.push({
+                scope: 'repository',
+                category: 'direct_team_permission',
+                operation: 'remove_team',
+                disposition: 'applied',
+                target: `${repository.full_name}:${String(action.team)}`,
               });
               logger.info(
                 `✅ Removed unauthorized team ${action.team} from ${repository.full_name}`
@@ -271,6 +402,13 @@ export class TeamPermissionsCheck extends BaseCheck {
                   permission: action.permission || action.new_permission,
                 },
               });
+              complianceActions.push({
+                scope: 'repository',
+                category: 'individual_collaborator',
+                operation: action.action,
+                disposition: 'applied',
+                target: `${repository.full_name}:${String(action.username)}`,
+              });
               logger.info(
                 `✅ ${
                   action.action === 'add_collaborator' ? 'Added' : 'Updated'
@@ -283,6 +421,13 @@ export class TeamPermissionsCheck extends BaseCheck {
               appliedActions.push({
                 action: 'remove_collaborator',
                 details: { username: action.username },
+              });
+              complianceActions.push({
+                scope: 'repository',
+                category: 'individual_collaborator',
+                operation: 'remove_collaborator',
+                disposition: 'applied',
+                target: `${repository.full_name}:${String(action.username)}`,
               });
               logger.info(
                 `✅ Removed collaborator ${action.username} from ${repository.full_name}`
@@ -305,10 +450,12 @@ export class TeamPermissionsCheck extends BaseCheck {
         );
       }
 
-      return this.createFixedResult(`Applied ${appliedActions.length} permission changes`, {
+      const result = this.createFixedResult(`Applied ${appliedActions.length} permission changes`, {
         applied_actions: appliedActions,
         total_actions: actions_needed?.length || 0,
       });
+      result.actions = complianceActions;
+      return result;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(

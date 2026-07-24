@@ -28,6 +28,8 @@ describe('teams/sync', () => {
     },
     targetMembers: [],
     manageMembers: false,
+    membershipAuthoritative: true,
+    preserveMaintainers: false,
     exists: false,
     changes: {
       membersToAdd: [],

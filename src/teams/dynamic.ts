@@ -36,16 +36,25 @@ async function resolveAllOrgMembers(
 ): Promise<ResolvedTeam | null> {
   try {
     const members = await github.listOrganizationMembers(owner);
-    const teamMembers: TeamMember[] = members.map((member) => ({
-      username: member.login,
-      role: 'member',
-    }));
+    const teamMembers: TeamMember[] = members
+      .filter((member) => member.suspended_at === undefined || member.suspended_at === null)
+      .filter(
+        (member) => rule.type === 'all_org_members' && (rule.include_bots || member.type !== 'Bot')
+      )
+      .map((member) => ({
+        username: member.login,
+        role: 'member',
+      }));
 
     return {
       definition: createPlaceholderTeamFromRule(rule),
       members: teamMembers,
       source: 'dynamic',
       rule,
+      membershipAuthoritative:
+        rule.type === 'all_org_members' ? (rule.membership_authoritative ?? false) : false,
+      preserveMaintainers:
+        rule.type === 'all_org_members' ? (rule.preserve_maintainers ?? true) : true,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

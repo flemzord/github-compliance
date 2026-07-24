@@ -1,11 +1,36 @@
-import type { CheckContext, ComplianceCheck } from '../checks/base';
+import type {
+  CheckContext,
+  CheckResult,
+  ComplianceCheck,
+  OrganizationCheck,
+  OrganizationCheckContext,
+} from '../checks/base';
+import type {
+  ActionCategory,
+  ActionDisposition,
+  CheckAction,
+  ComplianceAction,
+} from '../checks/types';
 import type { ComplianceConfig } from '../config/types';
 import type { GitHubClient } from '../github/client';
 import type { Repository } from '../github/types';
-import type { ProgressLogger } from '../logging';
+import type { CheckSummary, ProgressLogger } from '../logging';
 import * as logger from '../logging';
-import { getAvailableChecks, getCheck, normalizeCheckName } from './check-registry';
-import type { CheckExecution, RepositoryReport, RunnerOptions, RunnerReport } from './types';
+import {
+  getAvailableChecks,
+  getCheckScope,
+  getOrganizationCheck,
+  getRepositoryCheck,
+  normalizeCheckName,
+} from './check-registry';
+import type {
+  ActionSummary,
+  CheckExecution,
+  OrganizationCheckExecution,
+  RepositoryReport,
+  RunnerOptions,
+  RunnerReport,
+} from './types';
 
 export class ComplianceRunner {
   private client: GitHubClient;
@@ -50,6 +75,10 @@ export class ComplianceRunner {
 
     // Determine which checks to run
     const checksToRun = this.getChecksToRun();
+    const organizationChecks = checksToRun.filter(
+      (check) => getCheckScope(check) === 'organization'
+    );
+    const repositoryChecks = checksToRun.filter((check) => getCheckScope(check) === 'repository');
 
     if (!this.progressLogger) {
       logger.info(`Will run ${checksToRun.length} checks: ${checksToRun.join(', ')}`);
@@ -59,6 +88,15 @@ export class ComplianceRunner {
         this.progressLogger.updateCheckSummary(check, {
           status: 'pending',
         });
+      }
+    }
+
+    const organizationCheckExecutions: OrganizationCheckExecution[] = [];
+    for (const checkName of organizationChecks) {
+      const execution = await this.runOrganizationCheck(checkName);
+      if (execution) {
+        organizationCheckExecutions.push(execution);
+        this.updateProgressCheckSummary(checkName, execution.result);
       }
     }
 
@@ -83,7 +121,7 @@ export class ComplianceRunner {
           processedCount++;
           this.processedRepositories.set(repo.full_name, processedCount);
 
-          const report = await this.checkRepository(repo, checksToRun);
+          const report = await this.checkRepository(repo, repositoryChecks);
 
           // Update progress
           if (this.progressLogger) {
@@ -113,7 +151,7 @@ export class ComplianceRunner {
     }
 
     // Generate summary report
-    const report = this.generateReport(repositoryReports, startTime);
+    const report = this.generateReport(repositoryReports, organizationCheckExecutions, startTime);
     this.logSummary(report);
 
     return report;
@@ -143,12 +181,14 @@ export class ComplianceRunner {
    */
   private getChecksToRun(): string[] {
     const availableChecks = getAvailableChecks();
-
-    if (!this.options.checks || this.options.checks.length === 0) {
-      return availableChecks;
-    }
-
-    const normalizedChecks = this.options.checks.map((check) => normalizeCheckName(check));
+    const configuredChecks = this.config.checks?.enabled;
+    const requestedChecks =
+      this.options.checks && this.options.checks.length > 0
+        ? this.options.checks
+        : configuredChecks && configuredChecks.length > 0
+          ? configuredChecks
+          : availableChecks;
+    const normalizedChecks = requestedChecks.map((check) => normalizeCheckName(check));
     const invalidChecks = normalizedChecks.filter((check) => !availableChecks.includes(check));
 
     if (invalidChecks.length > 0) {
@@ -156,6 +196,89 @@ export class ComplianceRunner {
     }
 
     return normalizedChecks.filter((check) => availableChecks.includes(check));
+  }
+
+  private updateProgressCheckSummary(
+    checkName: string,
+    result: CheckResult,
+    existing?: CheckSummary
+  ): void {
+    if (!this.progressLogger) return;
+    const summary = existing ??
+      this.progressLogger.checkSummaries?.get(checkName) ?? {
+        name: checkName,
+        compliant: 0,
+        issues: 0,
+        fixed: 0,
+        status: 'running' as const,
+      };
+    if (result.compliant) summary.compliant += 1;
+    else summary.issues += 1;
+    if (result.fixed) summary.fixed += 1;
+    this.progressLogger.updateCheckSummary(checkName, summary);
+  }
+
+  private async runOrganizationCheck(
+    checkName: string
+  ): Promise<OrganizationCheckExecution | null> {
+    const startTime = Date.now();
+    const organization = this.config.organization ?? this.client.getOwner();
+    if (!organization) {
+      return {
+        checkName,
+        organization: 'unknown',
+        result: {
+          compliant: false,
+          message: 'Organization check failed with error',
+          error: 'Organization owner is required',
+        },
+        duration: Date.now() - startTime,
+        error: 'Organization owner is required',
+      };
+    }
+
+    try {
+      const CheckClass = getOrganizationCheck(checkName) as new () => OrganizationCheck;
+      const check = new CheckClass();
+      const context: OrganizationCheckContext = {
+        client: this.client,
+        config: this.config,
+        dryRun: this.options.dryRun,
+        organization,
+      };
+      if (!check.shouldRun(context)) {
+        logger.debug(`Skipping ${checkName} for ${organization} (shouldRun = false)`);
+        return null;
+      }
+
+      logger.debug(`Running ${checkName} for organization ${organization}`);
+      const result = await check.execute(context);
+      if (result.error) logger.error(`❌ Error: ${checkName} - ${result.message}: ${result.error}`);
+      else if (result.fixed) logger.info(`✅ Fixed: ${checkName} - ${result.message}`);
+      else if (!result.compliant) logger.warning(`⚠️ Fail: ${checkName} - ${result.message}`);
+      else logger.debug(`✅ Pass: ${checkName} - ${result.message}`);
+
+      return {
+        checkName,
+        organization,
+        result,
+        duration: Date.now() - startTime,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to run ${checkName} for organization ${organization}: ${message}`);
+      return {
+        checkName,
+        organization,
+        result: {
+          compliant: false,
+          message: 'Organization check failed with error',
+          error: message,
+        },
+        duration: Date.now() - startTime,
+        error: message,
+      };
+    }
   }
 
   /**
@@ -203,17 +326,7 @@ export class ComplianceRunner {
             status: 'running' as const,
           };
 
-          if (execution.result?.compliant) {
-            currentSummary.compliant++;
-          } else {
-            currentSummary.issues++;
-          }
-
-          if (execution.result?.fixed) {
-            currentSummary.fixed++;
-          }
-
-          this.progressLogger.updateCheckSummary(checkName, currentSummary);
+          this.updateProgressCheckSummary(checkName, execution.result, currentSummary);
         }
       }
     }
@@ -269,7 +382,7 @@ export class ComplianceRunner {
 
     try {
       // Create check instance
-      const CheckClass = getCheck(checkName) as new () => ComplianceCheck;
+      const CheckClass = getRepositoryCheck(checkName) as new () => ComplianceCheck;
       const check: ComplianceCheck = new CheckClass();
 
       // Create context
@@ -336,7 +449,11 @@ export class ComplianceRunner {
   /**
    * Generate summary report
    */
-  private generateReport(repositoryReports: RepositoryReport[], startTime: number): RunnerReport {
+  private generateReport(
+    repositoryReports: RepositoryReport[],
+    organizationChecks: OrganizationCheckExecution[],
+    startTime: number
+  ): RunnerReport {
     // Mark all checks as completed in ProgressLogger
     if (this.progressLogger) {
       for (const [checkName, summary] of this.progressLogger.checkSummaries) {
@@ -353,6 +470,14 @@ export class ComplianceRunner {
     const fixedRepositories = repositoryReports.filter((r) => r.checksFixed > 0).length;
 
     const errorRepositories = repositoryReports.filter((r) => r.checksErrored > 0).length;
+    const organizationHasErrors = organizationChecks.some((execution) => !!execution.result.error);
+    const organizationIsNonCompliant = organizationChecks.some(
+      (execution) => !execution.result.compliant && !execution.result.error
+    );
+    const actions = this.collectActions(repositoryReports, organizationChecks);
+    const actionSummary = this.summarizeActions(actions);
+    const hasErrors = errorRepositories > 0 || organizationHasErrors;
+    const isNonCompliant = nonCompliantRepositories > 0 || organizationIsNonCompliant;
 
     const compliancePercentage =
       totalRepositories > 0 ? Math.round((compliantRepositories / totalRepositories) * 100) : 100;
@@ -364,10 +489,100 @@ export class ComplianceRunner {
       fixedRepositories,
       errorRepositories,
       repositories: repositoryReports,
+      organizationChecks,
+      actions,
+      actionSummary,
+      status: {
+        configuration: 'valid',
+        execution: hasErrors ? 'error' : 'success',
+        compliance: hasErrors ? 'unknown' : isNonCompliant ? 'non_compliant' : 'compliant',
+      },
       compliancePercentage,
       executionTime: Date.now() - startTime,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  private collectActions(
+    repositoryReports: RepositoryReport[],
+    organizationChecks: OrganizationCheckExecution[]
+  ): ComplianceAction[] {
+    const actions: ComplianceAction[] = [];
+    for (const execution of organizationChecks) {
+      actions.push(...(execution.result.actions ?? []));
+    }
+    for (const report of repositoryReports) {
+      for (const execution of report.checks) {
+        if (execution.result.actions !== undefined) {
+          actions.push(...execution.result.actions);
+          continue;
+        }
+        actions.push(...this.normalizeLegacyActions(execution));
+      }
+    }
+    return actions;
+  }
+
+  private normalizeLegacyActions(execution: CheckExecution): ComplianceAction[] {
+    const details = execution.result.details;
+    if (!details) return [];
+    const proposed = Array.isArray(details.actions_needed)
+      ? (details.actions_needed as CheckAction[])
+      : [];
+    const applied = Array.isArray(details.applied_actions)
+      ? (details.applied_actions as CheckAction[])
+      : [];
+    const category = this.categoryForCheck(execution.checkName);
+    const normalize = (action: CheckAction, disposition: ActionDisposition): ComplianceAction => ({
+      scope: 'repository',
+      category,
+      operation: String(action.action),
+      disposition,
+      target: this.legacyActionTarget(execution.repository.full_name, action),
+      details: { ...action },
+    });
+    return [
+      ...proposed.map((action) => normalize(action, 'proposed')),
+      ...applied.map((action) => normalize(action, 'applied')),
+    ];
+  }
+
+  private categoryForCheck(checkName: string): ActionCategory {
+    const categories: Record<string, ActionCategory> = {
+      'repo-branch-protection': 'branch_protection',
+      'repo-access-teams': 'direct_team_permission',
+      'repo-merge-strategy': 'merge_strategy',
+      'repo-security-controls': 'security_control',
+      'repo-archival-policy': 'archival_policy',
+      'repo-settings': 'repository_setting',
+      'repo-rulesets-observe': 'ruleset_observation',
+    };
+    return categories[checkName] ?? 'repository_setting';
+  }
+
+  private legacyActionTarget(repository: string, action: CheckAction): string {
+    const identifier = action.team ?? action.username ?? action.branch ?? action.field;
+    return identifier === undefined ? repository : `${repository}:${String(identifier)}`;
+  }
+
+  private summarizeActions(actions: ComplianceAction[]): ActionSummary {
+    const categories: ActionCategory[] = [
+      'branch_protection',
+      'organization_role_permission',
+      'direct_team_permission',
+      'individual_collaborator',
+      'team_synchronization',
+      'ruleset_observation',
+      'merge_strategy',
+      'security_control',
+      'archival_policy',
+      'repository_setting',
+    ];
+    const summary = Object.fromEntries(
+      categories.map((category) => [category, { proposed: 0, applied: 0, ignored: 0 }])
+    ) as ActionSummary;
+    for (const action of actions) summary[action.category][action.disposition] += 1;
+    return summary;
   }
 
   /**
@@ -383,9 +598,16 @@ export class ComplianceRunner {
     logger.info(`❌ Non-Compliant: ${report.nonCompliantRepositories}`);
     logger.info(`🔧 Fixed: ${report.fixedRepositories}`);
     logger.info(`⚠️ Errors: ${report.errorRepositories}`);
+    logger.info(`Execution: ${report.status.execution}`);
+    logger.info(`Compliance: ${report.status.compliance}`);
     logger.info(`📈 Compliance Rate: ${report.compliancePercentage}%`);
     logger.info(`⏱️ Execution Time: ${(report.executionTime / 1000).toFixed(2)}s`);
     logger.info('='.repeat(60));
+
+    const proposed = report.actions.filter((action) => action.disposition === 'proposed').length;
+    const applied = report.actions.filter((action) => action.disposition === 'applied').length;
+    const ignored = report.actions.filter((action) => action.disposition === 'ignored').length;
+    logger.info(`Actions: ${proposed} proposed, ${applied} applied, ${ignored} ignored`);
 
     // List non-compliant repositories for visibility
     if (report.nonCompliantRepositories > 0) {

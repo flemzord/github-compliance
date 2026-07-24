@@ -1,5 +1,6 @@
 import type { ComplianceConfig } from '../../config/types';
 import type { GitHubClient, Repository } from '../../github/types';
+import { TeamManager } from '../../teams';
 import { ComplianceRunner } from '../index';
 import type { RunnerOptions } from '../types';
 
@@ -128,5 +129,49 @@ describe('ComplianceRunner', () => {
 
     expect(report.totalRepositories).toBe(0);
     expect(report.compliancePercentage).toBe(100);
+  });
+
+  it('runs organization team synchronization exactly once for multiple repositories', async () => {
+    const existingRepositories = await (mockClient.listRepositories as jest.Mock)();
+    const firstRepository = existingRepositories[0] as Repository;
+    const multiRepoClient: Partial<GitHubClient> = {
+      listRepositories: jest.fn().mockResolvedValue([
+        firstRepository,
+        {
+          ...firstRepository,
+          id: 2,
+          name: 'second-repo',
+          full_name: 'org/second-repo',
+        },
+      ]),
+      getOwner: jest.fn().mockReturnValue('test-org'),
+    };
+    const syncSpy = jest.spyOn(TeamManager.prototype, 'sync').mockResolvedValue({
+      hasChanges: false,
+      hasErrors: false,
+      findings: [],
+      actions: [],
+      summary: 'No changes',
+      stats: { processed: 1, created: 0, updated: 0, removed: 0, skipped: 1 },
+    });
+    const config: ComplianceConfig = {
+      version: 1,
+      organization: 'test-org',
+      defaults: {},
+      teams: { dynamic_rules: [{ name: 'all', type: 'all_org_members' }] },
+      checks: { enabled: ['org-team-sync'] },
+    };
+
+    const runner = new ComplianceRunner(multiRepoClient as GitHubClient, config, {
+      dryRun: true,
+      includeArchived: false,
+    });
+    const report = await runner.run();
+
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(report.organizationChecks).toHaveLength(1);
+    expect(report.repositories).toHaveLength(2);
+    expect(report.repositories.every((repository) => repository.checksRun === 0)).toBe(true);
+    syncSpy.mockRestore();
   });
 });

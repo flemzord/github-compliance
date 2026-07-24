@@ -14,6 +14,8 @@ export class JsonReporter {
   generateSummary(report: RunnerReport): string {
     const summary = {
       timestamp: report.timestamp,
+      status: report.status,
+      actionSummary: report.actionSummary,
       compliancePercentage: report.compliancePercentage,
       totalRepositories: report.totalRepositories,
       compliantRepositories: report.compliantRepositories,
@@ -21,6 +23,12 @@ export class JsonReporter {
       fixedRepositories: report.fixedRepositories,
       errorRepositories: report.errorRepositories,
       executionTime: report.executionTime,
+      organizationChecks: report.organizationChecks.map((execution) => ({
+        name: execution.checkName,
+        compliant: execution.result.compliant,
+        fixed: execution.result.fixed ?? false,
+        error: execution.result.error,
+      })),
       nonCompliantRepos: report.repositories
         .filter((r) => !r.compliant)
         .map((r) => ({
